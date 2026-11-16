@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -105,6 +106,8 @@ type App struct {
 	trialDone <-chan error
 
 	logMu sync.Mutex
+	// keptBackups is where uninstall saved the backups, for the final message.
+	keptBackups string
 }
 
 // prevState remembers how our bypass ran before an operation stopped it.
@@ -214,6 +217,13 @@ func (a *App) init() error {
 	if extracted {
 		a.logf("payload extracted: Flowseal %s, GoodbyeDPI %s", a.payload.Flowseal, a.payload.GoodbyeDPI)
 		_ = a.restore(prev)
+	}
+	// A newer downloaded exe refreshes the installed copy that the logon
+	// check and the Start menu entry run.
+	if a.cfg.Installed {
+		if err := a.installSelf(); err != nil {
+			a.logf("update installed copy: %v", err)
+		}
 	}
 	return nil
 }
@@ -678,37 +688,56 @@ func (a *App) uninstall(restoreForeignTools bool) []string {
 }
 
 // preserveBackups copies the backup folder (hosts copies, moved autostart
-// entries of other tools, service exports) to the public Documents folder
-// before the data folder is removed, so nothing the user had is lost.
+// entries of other tools, service exports) out of the data folder before it
+// is removed. The copy goes to a NEW admin-only folder under ProgramData
+// with an unpredictable name: never into a user-writable place, where a
+// pre-planted junction could redirect this elevated write.
 func (a *App) preserveBackups() (string, error) {
 	src := filepath.Join(a.dataDir, "backup")
 	if entries, err := os.ReadDir(src); err != nil || len(entries) == 0 {
 		return "", nil
 	}
-	pub := os.Getenv("PUBLIC")
-	if pub == "" {
-		pub = `C:\Users\Public`
+	var rnd [4]byte
+	_, _ = rand.Read(rnd[:])
+	dst := filepath.Join(filepath.Dir(a.dataDir),
+		fmt.Sprintf("%s-backup-%s-%x", appName, time.Now().Format("20060102-150405"), rnd))
+	if err := createAdminOnlyDir(dst); err != nil { // fails if it already exists
+		return "", err
 	}
-	dst := filepath.Join(pub, "Documents", "EzPzDPI backup "+time.Now().Format("2006-01-02 15-04"))
 	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		if d.Type()&(os.ModeSymlink|os.ModeIrregular) != 0 {
+			return nil // never follow links, even in our own folder
+		}
 		rel, _ := filepath.Rel(src, p)
+		if rel == "." {
+			return nil
+		}
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
+			return os.Mkdir(target, 0o755)
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+		f, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if err != nil {
+			return err
+		}
+		if _, err := f.Write(data); err != nil {
+			f.Close()
+			return err
+		}
+		return f.Close()
 	})
 	if err != nil {
 		a.logf("preserve backups: %v", err)
 		return "", err
 	}
+	a.keptBackups = dst
 	return dst, nil
 }
 

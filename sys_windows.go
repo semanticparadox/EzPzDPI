@@ -167,7 +167,9 @@ func createLogonTask(name, exe string, args ...string) error {
 		return err
 	}
 	xml := logonTaskXML(tu.User.Sid.String(), exe, args)
-	f, err := os.CreateTemp("", "ezpzdpi-task-*.xml")
+	// Written into the admin-only data folder, not %TEMP%: an unelevated
+	// process could swap a temp file before schtasks reads it.
+	f, err := os.CreateTemp(defaultDataDir(), "task-*.xml")
 	if err != nil {
 		return err
 	}
@@ -415,6 +417,23 @@ func secureDataDir(dir string) error {
 	}
 	hardenDir(dir)
 	return nil
+}
+
+// createAdminOnlyDir creates a new folder readable and writable only by
+// SYSTEM and Administrators. It fails if the path already exists, so a
+// folder (or junction) someone planted in advance is never reused.
+func createAdminOnlyDir(dir string) error {
+	sd, err := windows.SecurityDescriptorFromString("D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)")
+	if err != nil {
+		return err
+	}
+	sa := &windows.SecurityAttributes{SecurityDescriptor: sd}
+	sa.Length = uint32(unsafe.Sizeof(*sa))
+	p, err := windows.UTF16PtrFromString(dir)
+	if err != nil {
+		return err
+	}
+	return windows.CreateDirectory(p, sa)
 }
 
 func trustedOwner(path string) bool {

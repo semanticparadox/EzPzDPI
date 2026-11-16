@@ -1628,6 +1628,9 @@ func (c *Controller) Uninstall(restoreForeignTools bool) {
 				return
 			}
 			vs.Verdict = Verdict{Title: "EzPzDPI удалён", Text: "Обход выключен, служба и рабочие файлы удалены. Сетевой драйвер выгрузится после перезагрузки, интернет работает и без неё. Закройте окно и удалите файл EzPzDPI.exe, если он остался в Загрузках."}
+			if c.a.keptBackups != "" {
+				vs.Verdict.Text += " Резервные копии (файл hosts, автозапуск прежнего обхода) сохранены в папке " + c.a.keptBackups + "."
+			}
 		})
 	})
 }

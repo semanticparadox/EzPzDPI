@@ -168,7 +168,11 @@ func uninstallFromApps(a *App) int {
 		messageBox("Удалено не всё:\n"+joinLines(errs), windows.MB_ICONWARNING)
 		return 1
 	}
-	messageBox("EzPzDPI удалён. Сетевой драйвер выгрузится после перезагрузки, интернет работает и без неё.", windows.MB_ICONINFORMATION)
+	msg := "EzPzDPI удалён. Сетевой драйвер выгрузится после перезагрузки, интернет работает и без неё."
+	if a.keptBackups != "" {
+		msg += "\n\nРезервные копии сохранены в папке " + a.keptBackups + "."
+	}
+	messageBox(msg, windows.MB_ICONINFORMATION)
 	return 0
 }
 
