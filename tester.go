@@ -26,41 +26,56 @@ import (
 // body must deliver that many bytes: it catches throttling and the
 // "freeze after 16-20 KB" pattern, not only outright blocks.
 type Target struct {
-	Service  string
-	Host     string
-	Path     string
-	MinBytes int64
-}
-
-// Targets are the checks behind "YouTube works" and "Discord works".
-var Targets = []Target{
-	{"YouTube", "www.youtube.com", "/", 128 << 10},
-	{"YouTube", "i.ytimg.com", "/vi/dQw4w9WgXcQ/maxresdefault.jpg", 60 << 10},
-	{"YouTube", "redirector.googlevideo.com", "/report_mapping?di=no", 0},
-	{"Discord", "discord.com", "/", 64 << 10},
-	{"Discord", "gateway.discord.gg", "/", 0},
-	{"Discord", "cdn.discordapp.com", "/", 0},
-	{"Discord", "updates.discord.com", "/", 0},
+	Service  string `json:"service"`
+	Host     string `json:"host"`
+	Path     string `json:"path"`
+	MinBytes int64  `json:"min_bytes,omitempty"`
+	// Optional targets do not decide whether the service works; a failure
+	// makes the service "partial".
+	Optional bool `json:"optional,omitempty"`
+	// TCPOnly checks that a TCP connection to port 443 opens (Host is an IP).
+	TCPOnly bool `json:"tcp_only,omitempty"`
+	// Accept overrides the Accept header (DoH JSON needs application/dns-json).
+	Accept string `json:"accept,omitempty"`
 }
 
 const chromeUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
+// Failure stages, from the outermost to the innermost.
+const (
+	StageDNS  = "dns"
+	StageTCP  = "tcp"
+	StageTLS  = "tls"
+	StageHTTP = "http"
+	StageData = "data"
+)
+
+// Results of the neutral-SNI probe that follows a TLS failure.
+const (
+	NeutralAnswers = "answers" // the server talks TLS to other names: the block targets this site's name (DPI)
+	NeutralSilent  = "silent"  // nothing answers on that address: blocked by IP or the server is down
+)
+
 // ProbeResult is the outcome of fetching one Target.
 type ProbeResult struct {
 	Target
-	OK     bool
-	Status int
-	Bytes  int64
-	Took   time.Duration
-	Err    string
-	// CertErr marks a certificate mismatch: usually an ISP block page
-	// reached through a spoofed DNS answer.
-	CertErr bool
+	OK         bool
+	Status     int
+	Bytes      int64
+	Took       time.Duration
+	Stage      string
+	Err        string
+	CertErr    bool
+	DNSSpoofed bool
+	Neutral    string
+	IP         string
+	Head       []byte
 }
 
-// Report holds the results of one full test round.
+// Report holds the results of one test round.
 type Report struct{ Results []ProbeResult }
 
+// Services lists service ids in first-seen order.
 func (r Report) Services() []string {
 	var out []string
 	seen := map[string]bool{}
@@ -73,14 +88,16 @@ func (r Report) Services() []string {
 	return out
 }
 
+// ServiceOK: every required target of the service answered.
 func (r Report) ServiceOK(svc string) bool {
 	found := false
 	for _, p := range r.Results {
-		if p.Service == svc {
-			found = true
-			if !p.OK {
-				return false
-			}
+		if p.Service != svc || p.Optional {
+			continue
+		}
+		found = true
+		if !p.OK {
+			return false
 		}
 	}
 	return found
@@ -122,13 +139,16 @@ func (r Report) Better(o Report) bool {
 type Tester struct {
 	Targets []Target
 	Timeout time.Duration
+	// Neutral enables the neutral-SNI probe after TLS failures (diagnosis).
+	Neutral bool
 	addrs   map[string][]string
+	spoofed map[string]bool
 	Notes   []string
+	mu      sync.Mutex
 }
 
 func NewTester(ctx context.Context, targets []Target) *Tester {
-	t := &Tester{Targets: targets, Timeout: 6 * time.Second, addrs: map[string][]string{}}
-	var mu sync.Mutex
+	t := &Tester{Targets: targets, Timeout: 6 * time.Second, addrs: map[string][]string{}, spoofed: map[string]bool{}}
 	var wg sync.WaitGroup
 	seen := map[string]bool{}
 	for _, tg := range targets {
@@ -139,40 +159,53 @@ func NewTester(ctx context.Context, targets []Target) *Tester {
 		wg.Add(1)
 		go func(host string) {
 			defer wg.Done()
-			ips, note := resolveHost(ctx, host)
-			mu.Lock()
+			ips, spoofed, note := resolveHost(ctx, host)
+			t.mu.Lock()
 			t.addrs[host] = ips
+			if spoofed {
+				t.spoofed[host] = true
+			}
 			if note != "" {
 				t.Notes = append(t.Notes, note)
 			}
-			mu.Unlock()
+			t.mu.Unlock()
 		}(tg.Host)
 	}
 	wg.Wait()
 	return t
 }
 
-// DNSTrouble reports whether any host needed the DNS-over-HTTPS fallback.
-func (t *Tester) DNSTrouble() bool { return len(t.Notes) > 0 }
+// Subset returns a tester for some targets that reuses the resolved addresses.
+func (t *Tester) Subset(keep func(Target) bool) *Tester {
+	n := &Tester{Timeout: t.Timeout, Neutral: t.Neutral, addrs: t.addrs, spoofed: t.spoofed, Notes: t.Notes}
+	for _, tg := range t.Targets {
+		if keep(tg) {
+			n.Targets = append(n.Targets, tg)
+		}
+	}
+	return n
+}
 
-func resolveHost(ctx context.Context, host string) ([]string, string) {
+// DNSTrouble reports whether any host needed the DNS-over-HTTPS fallback.
+func (t *Tester) DNSTrouble() bool { return len(t.spoofed) > 0 }
+
+func resolveHost(ctx context.Context, host string) (ips []string, spoofed bool, note string) {
 	lctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	sys, err := net.DefaultResolver.LookupIP(lctx, "ip4", host)
-	var good []string
 	for _, ip := range sys {
 		if a, ok := netip.AddrFromSlice(ip.To4()); ok && usableAddr(a) {
-			good = append(good, a.String())
+			ips = append(ips, a.String())
 		}
 	}
-	if len(good) > 0 {
-		return good, ""
+	if len(ips) > 0 {
+		return ips, false, ""
 	}
 	doh, derr := dohLookup(ctx, host)
 	if derr != nil || len(doh) == 0 {
-		return nil, fmt.Sprintf("%s: адрес не найден ни через DNS провайдера (%v), ни через DNS-over-HTTPS", host, errText(err))
+		return nil, false, fmt.Sprintf("%s: адрес не найден ни через DNS провайдера (%v), ни через DNS-over-HTTPS", host, errText(err))
 	}
-	return doh, fmt.Sprintf("%s: DNS провайдера не отдаёт настоящий адрес, взят через DNS-over-HTTPS", host)
+	return doh, true, fmt.Sprintf("%s: DNS провайдера не отдаёт настоящий адрес, взят через DNS-over-HTTPS", host)
 }
 
 func usableAddr(a netip.Addr) bool {
@@ -234,11 +267,15 @@ func (t *Tester) RecheckSpoofed(ctx context.Context, r Report) bool {
 			continue
 		}
 		ips, err := dohLookup(ctx, p.Host)
+		t.mu.Lock()
 		if err != nil || len(ips) == 0 || overlaps(ips, t.addrs[p.Host]) {
+			t.mu.Unlock()
 			continue
 		}
 		t.addrs[p.Host] = ips
+		t.spoofed[p.Host] = true
 		t.Notes = append(t.Notes, p.Host+": DNS провайдера отдаёт адрес страницы-заглушки, взят адрес через DNS-over-HTTPS")
+		t.mu.Unlock()
 		changed = true
 	}
 	return changed
@@ -272,28 +309,44 @@ func (t *Tester) Run(ctx context.Context) Report {
 
 func (t *Tester) probe(ctx context.Context, tg Target) ProbeResult {
 	r := ProbeResult{Target: tg}
+	t.mu.Lock()
 	ips := t.addrs[tg.Host]
+	r.DNSSpoofed = t.spoofed[tg.Host]
+	t.mu.Unlock()
 	if len(ips) == 0 {
+		r.Stage = StageDNS
 		r.Err = "нет IP-адреса (DNS)"
 		return r
 	}
 	start := time.Now()
 	pctx, cancel := context.WithTimeout(ctx, t.Timeout)
 	defer cancel()
-	var err error
+	var res fetchResult
 	for i, ip := range ips {
 		if i >= 2 || pctx.Err() != nil {
 			break
 		}
-		r.Status, r.Bytes, err = fetch(pctx, tg, ip)
-		if err == nil {
+		res = fetch(pctx, tg, ip)
+		r.IP = ip
+		if res.err == nil {
 			break
 		}
 	}
 	r.Took = time.Since(start)
-	if err != nil {
-		r.Err = err.Error()
-		r.CertErr = isCertErr(err)
+	r.Status, r.Bytes, r.Head = res.status, res.bytes, res.head
+	if res.err != nil {
+		r.Stage = res.stage
+		r.Err = res.err.Error()
+		r.CertErr = isCertErr(res.err)
+		if t.Neutral && res.stage == StageTLS && !r.CertErr && r.IP != "" {
+			nctx, ncancel := context.WithTimeout(ctx, 4*time.Second)
+			if neutralAnswers(nctx, r.IP) {
+				r.Neutral = NeutralAnswers
+			} else {
+				r.Neutral = NeutralSilent
+			}
+			ncancel()
+		}
 		return r
 	}
 	r.OK = true
@@ -307,6 +360,7 @@ type stageError struct {
 }
 
 func (e *stageError) Error() string { return describeFailure(e.stage, e.bytes, e.err) }
+func (e *stageError) Unwrap() error { return e.err }
 
 func isCertErr(err error) bool {
 	var certErr *x509.UnknownAuthorityError
@@ -321,20 +375,22 @@ func describeFailure(stage string, n int64, err error) string {
 		return "подмена сертификата (заглушка провайдера)"
 	case isTimeout(err):
 		switch stage {
-		case "tcp":
+		case StageTCP:
 			return "нет соединения (таймаут)"
-		case "tls":
-			return "TLS завис (блок по SNI)"
-		case "data":
+		case StageTLS:
+			return "TLS завис (блок по имени сайта)"
+		case StageData:
 			return fmt.Sprintf("обрыв после %d КБ (замедление)", n>>10)
 		default:
 			return "таймаут ответа"
 		}
+	case errors.Is(err, syscall.ECONNREFUSED) || strings.Contains(err.Error(), "refused"):
+		return "соединение отклонено"
 	case errors.Is(err, syscall.ECONNRESET) || strings.Contains(strings.ToLower(err.Error()), "reset") ||
 		strings.Contains(err.Error(), "forcibly closed"):
 		return "соединение сброшено (RST)"
 	case errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF):
-		if stage == "data" {
+		if stage == StageData {
 			return fmt.Sprintf("соединение оборвано после %d КБ", n>>10)
 		}
 		return "соединение закрыто (" + stage + ")"
@@ -369,25 +425,44 @@ func errText(err error) string {
 	return shortErr(err)
 }
 
+type fetchResult struct {
+	status int
+	bytes  int64
+	head   []byte
+	stage  string
+	err    error
+}
+
+const headLimit = 8 << 10
+
 // fetch opens TCP+TLS with a Chrome ClientHello (so the DPI and winws see a
 // browser-like handshake), sends a GET and reads up to MinBytes of the body.
-func fetch(ctx context.Context, tg Target, ip string) (int, int64, error) {
+func fetch(ctx context.Context, tg Target, ip string) fetchResult {
+	fail := func(stage string, n int64, err error) fetchResult {
+		return fetchResult{stage: stage, bytes: n, err: &stageError{stage: stage, bytes: n, err: err}}
+	}
 	var d net.Dialer
 	raw, err := d.DialContext(ctx, "tcp4", net.JoinHostPort(ip, "443"))
 	if err != nil {
-		return 0, 0, &stageError{stage: "tcp", err: err}
+		return fail(StageTCP, 0, err)
 	}
 	defer raw.Close()
+	if tg.TCPOnly {
+		return fetchResult{}
+	}
 	if dl, ok := ctx.Deadline(); ok {
 		_ = raw.SetDeadline(dl)
 	}
 	uc := utls.UClient(raw, &utls.Config{ServerName: tg.Host}, utls.HelloChrome_Auto)
 	if err := uc.HandshakeContext(ctx); err != nil {
-		return 0, 0, &stageError{stage: "tls", err: err}
+		return fail(StageTLS, 0, err)
 	}
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+tg.Host+tg.Path, nil)
 	req.Header.Set("User-Agent", chromeUA)
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8")
+	if tg.Accept != "" {
+		req.Header.Set("Accept", tg.Accept)
+	}
 	req.Header.Set("Accept-Language", "ru-RU,ru;q=0.9,en;q=0.8")
 
 	var resp *http.Response
@@ -395,21 +470,21 @@ func fetch(ctx context.Context, tg Target, ip string) (int, int64, error) {
 		tr := &http2.Transport{DisableCompression: true}
 		cc, err := tr.NewClientConn(uc)
 		if err != nil {
-			return 0, 0, &stageError{stage: "http", err: err}
+			return fail(StageHTTP, 0, err)
 		}
 		defer cc.Close()
 		resp, err = cc.RoundTrip(req)
 		if err != nil {
-			return 0, 0, &stageError{stage: "http", err: err}
+			return fail(StageHTTP, 0, err)
 		}
 	} else {
 		req.Header.Set("Connection", "close")
 		if err := req.Write(uc); err != nil {
-			return 0, 0, &stageError{stage: "http", err: err}
+			return fail(StageHTTP, 0, err)
 		}
 		resp, err = http.ReadResponse(bufio.NewReader(uc), req)
 		if err != nil {
-			return 0, 0, &stageError{stage: "http", err: err}
+			return fail(StageHTTP, 0, err)
 		}
 	}
 	defer resp.Body.Close()
@@ -417,9 +492,50 @@ func fetch(ctx context.Context, tg Target, ip string) (int, int64, error) {
 	if limit <= 0 {
 		limit = 4 << 10
 	}
-	n, err := io.Copy(io.Discard, io.LimitReader(resp.Body, limit))
-	if err != nil {
-		return resp.StatusCode, n, &stageError{stage: "data", bytes: n, err: err}
+	head := make([]byte, min(int64(headLimit), limit))
+	n0, err := io.ReadFull(resp.Body, head)
+	head = head[:n0]
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		return fetchResult{status: resp.StatusCode, bytes: int64(n0), head: head}
 	}
-	return resp.StatusCode, n, nil
+	if err != nil {
+		r := fail(StageData, int64(n0), err)
+		r.status, r.head = resp.StatusCode, head
+		return r
+	}
+	n, err := io.Copy(io.Discard, io.LimitReader(resp.Body, limit-int64(n0)))
+	if err != nil {
+		r := fail(StageData, int64(n0)+n, err)
+		r.status, r.head = resp.StatusCode, head
+		return r
+	}
+	return fetchResult{status: resp.StatusCode, bytes: int64(n0) + n, head: head}
+}
+
+// neutralSNI is a name no DPI blocks. If the server answers a ClientHello
+// for it, TLS itself reaches the address and the failure was name-based.
+const neutralSNI = "www.example.com"
+
+func neutralAnswers(ctx context.Context, ip string) bool {
+	var d net.Dialer
+	raw, err := d.DialContext(ctx, "tcp4", net.JoinHostPort(ip, "443"))
+	if err != nil {
+		return false
+	}
+	defer raw.Close()
+	if dl, ok := ctx.Deadline(); ok {
+		_ = raw.SetDeadline(dl)
+	}
+	// Verification is off on purpose: this is a reachability probe that sends
+	// no request and reads no data, and the server's certificate will not
+	// match the neutral name anyway.
+	uc := utls.UClient(raw, &utls.Config{ServerName: neutralSNI, InsecureSkipVerify: true}, utls.HelloChrome_Auto)
+	err = uc.HandshakeContext(ctx)
+	if err == nil {
+		return true
+	}
+	// An alert or any parsed server message means the server is reachable;
+	// silence and resets mean it is not.
+	return !isTimeout(err) && !errors.Is(err, syscall.ECONNRESET) && !errors.Is(err, io.EOF) &&
+		!strings.Contains(strings.ToLower(err.Error()), "reset") && !strings.Contains(err.Error(), "forcibly closed")
 }

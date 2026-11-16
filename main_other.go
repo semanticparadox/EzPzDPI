@@ -1,7 +1,7 @@
 //go:build !windows
 
 // Development entry point for non-Windows hosts: checks the embedded
-// strategies and runs the connectivity tester without any bypass engine.
+// strategies and runs the diagnosis without any bypass engine.
 package main
 
 import (
@@ -10,12 +10,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func main() {
 	list := flag.Bool("list", false, "распаковать payload во временную папку и показать стратегии")
+	stun := flag.Bool("stun", false, "проверить UDP через STUN")
 	flag.Parse()
-	if *list {
+	switch {
+	case *list:
 		dir, err := os.MkdirTemp("", "ezpzdpi-*")
 		if err != nil {
 			fmt.Println(err)
@@ -32,7 +35,7 @@ func main() {
 		}
 		info, _ := readEmbeddedInfo()
 		fmt.Printf("payload: Flowseal %s, GoodbyeDPI %s\n", info.Flowseal, info.GoodbyeDPI)
-		strats, errs := loadZapretStrategies(filepath.Join(dir, "zapret"))
+		strats, errs := loadZapretStrategies(filepath.Join(dir, "zapret"), gameFilterOff, `C:\x\list-ezpzdpi.txt`)
 		strats = append(strats, gdpiStrategies(`C:\x\blacklist.txt`)...)
 		for i, s := range strats {
 			fmt.Printf("%2d. %-30s %-11s %d аргументов\n", i+1, s.Name, s.Engine, len(s.Args))
@@ -40,14 +43,23 @@ func main() {
 		for _, e := range errs {
 			fmt.Println("ошибка:", e)
 		}
-		return
+	case *stun:
+		for _, addr := range []string{"stun.l.google.com:19302", "stun.cloudflare.com:3478"} {
+			r := stunProbe(context.Background(), addr, 10, 200*time.Millisecond)
+			fmt.Printf("%-28s sent %d got %d loss %.0f%% median %v maxgap %d %s\n", addr, r.Sent, r.Got, 100*r.Loss(), r.Median, r.MaxGap, r.Err)
+		}
+	default:
+		ctx := context.Background()
+		t := NewTester(ctx, allTargets(nil))
+		t.Neutral = true
+		for _, n := range t.Notes {
+			fmt.Println("DNS:", n)
+		}
+		r := t.Run(ctx)
+		byID := catalogByID()
+		for _, id := range r.Services() {
+			d := Diagnose(byID[id], r)
+			fmt.Printf("%-14s %-10s %s\n", byID[id].Name, d.State, d.Detail)
+		}
 	}
-	ctx := context.Background()
-	t := NewTester(ctx, Targets)
-	for _, n := range t.Notes {
-		fmt.Println("DNS:", n)
-	}
-	r := t.Run(ctx)
-	printReport(r)
-	fmt.Printf("passed %d/%d\n", r.Passed(), len(r.Results))
 }

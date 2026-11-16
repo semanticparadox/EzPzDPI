@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -20,17 +21,180 @@ import (
 
 const createNoWindow = 0x08000000
 
+var (
+	kernel32          = windows.NewLazySystemDLL("kernel32.dll")
+	procAttachConsole = kernel32.NewProc("AttachConsole")
+	procAllocConsole  = kernel32.NewProc("AllocConsole")
+	procGetConsoleWnd = kernel32.NewProc("GetConsoleWindow")
+)
+
+// setupConsole gives this GUI-subsystem exe a console for command-line use:
+// the parent's console when started from cmd/PowerShell, else a new one.
+// It returns true when a new console window was created.
+func setupConsole(title string) (fresh bool) {
+	const attachParent = ^uintptr(0) // ATTACH_PARENT_PROCESS
+	if r, _, _ := procAttachConsole.Call(attachParent); r == 0 {
+		procAllocConsole.Call()
+		fresh = true
+	}
+	reopenStd()
+	initConsole(title)
+	return fresh
+}
+
+func reopenStd() {
+	if f, err := os.OpenFile("CONOUT$", os.O_RDWR, 0); err == nil {
+		os.Stdout, os.Stderr = f, f
+	}
+	if f, err := os.OpenFile("CONIN$", os.O_RDWR, 0); err == nil {
+		os.Stdin = f
+		stdin = bufio.NewReader(f)
+	}
+}
+
 func initConsole(title string) {
 	_ = windows.SetConsoleOutputCP(65001)
 	_ = windows.SetConsoleCP(65001)
-	h, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE)
+	h := windows.Handle(os.Stdout.Fd())
 	var mode uint32
-	if err != nil || windows.GetConsoleMode(h, &mode) != nil ||
+	if windows.GetConsoleMode(h, &mode) != nil ||
 		windows.SetConsoleMode(h, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING) != nil {
 		useColor = false
 		return
 	}
 	os.Stdout.WriteString("\x1b]0;" + title + "\x07")
+}
+
+// messageBox shows a native dialog; used when the window cannot be opened.
+func messageBox(text string, flags uint32) int32 {
+	t, _ := windows.UTF16PtrFromString(text)
+	c, _ := windows.UTF16PtrFromString(appName)
+	r, _ := windows.MessageBox(0, t, c, flags)
+	return r
+}
+
+const healTaskName = `EzPzDPI\Heal`
+
+// createLogonTask registers a task that runs exe with args at every logon,
+// elevated, a minute after the user signs in.
+func createLogonTask(name, exe string, args ...string) error {
+	tr := syscall.EscapeArg(exe)
+	for _, a := range args {
+		tr += " " + syscall.EscapeArg(a)
+	}
+	return runHidden("schtasks.exe", "/Create", "/F", "/TN", name, "/SC", "ONLOGON", "/DELAY", "0001:00", "/RL", "HIGHEST", "/TR", tr)
+}
+
+func deleteTask(name string) error {
+	if !taskExists(name) {
+		return nil
+	}
+	return runHidden("schtasks.exe", "/Delete", "/F", "/TN", name)
+}
+
+func taskExists(name string) bool { return runHidden("schtasks.exe", "/Query", "/TN", name) == nil }
+
+func runHidden(exe string, args ...string) error {
+	cmd := exec.Command(exe, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %v: %s", exe, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func runHiddenOutput(exe string, args ...string) (string, error) {
+	cmd := exec.Command(exe, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// svcInfo describes another program's Windows service.
+type svcInfo struct {
+	Name      string
+	Exists    bool
+	Running   bool
+	StartType uint32
+	BinPath   string
+}
+
+func queryService(name string) svcInfo {
+	info := svcInfo{Name: name}
+	m, err := mgr.Connect()
+	if err != nil {
+		return info
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(name)
+	if err != nil {
+		return info
+	}
+	defer s.Close()
+	info.Exists = true
+	if st, err := s.Query(); err == nil {
+		info.Running = st.State == svc.Running || st.State == svc.StartPending
+	}
+	if c, err := s.Config(); err == nil {
+		info.StartType = c.StartType
+		info.BinPath = c.BinaryPathName
+	}
+	return info
+}
+
+// setServiceStart changes a service's start type and optionally starts it.
+func setServiceStart(name string, start uint32, startNow bool) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(name)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+	c, err := s.Config()
+	if err != nil {
+		return err
+	}
+	c.StartType = start
+	if err := s.UpdateConfig(c); err != nil {
+		return err
+	}
+	if startNow {
+		return s.Start()
+	}
+	return nil
+}
+
+// stopService stops a service without deleting it.
+func stopService(name string) error {
+	m, err := mgr.Connect()
+	if err != nil {
+		return err
+	}
+	defer m.Disconnect()
+	s, err := m.OpenService(name)
+	if err != nil {
+		return nil
+	}
+	defer s.Close()
+	st, err := s.Query()
+	if err != nil || st.State == svc.Stopped {
+		return err
+	}
+	if _, err := s.Control(svc.Stop); err != nil {
+		return err
+	}
+	for i := 0; i < 40; i++ {
+		if st, err := s.Query(); err != nil || st.State == svc.Stopped {
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	return fmt.Errorf("служба %s не остановилась", name)
 }
 
 func isAdmin() bool { return windows.GetCurrentProcessToken().IsElevated() }

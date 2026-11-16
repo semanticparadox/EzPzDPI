@@ -24,7 +24,7 @@ func TestParseFlowsealBat(t *testing.T) {
 		"--filter-tcp=443 --hostlist=\"%LISTS%list-google.txt\" --dpi-desync-fake-tls=\"%BIN%tls.bin\" --new ^\r\n" +
 		"--filter-udp=%GameFilterUDP% --dpi-desync=fake\r\n" +
 		"echo done\r\n"
-	got, err := parseFlowsealBat(src, `C:\D\zapret\bin`, `C:\D\zapret\lists\`)
+	got, err := parseFlowsealBat(src, `C:\D\zapret\bin`, `C:\D\zapret\lists\`, gameFilterOff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,10 +36,10 @@ func TestParseFlowsealBat(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q\nwant %q", got, want)
 	}
-	if _, err := parseFlowsealBat("echo hi", "a", "b"); err == nil {
+	if _, err := parseFlowsealBat("echo hi", "a", "b", gameFilterOff); err == nil {
 		t.Fatal("expected error for a file without winws.exe")
 	}
-	if _, err := parseFlowsealBat(`"%BIN%winws.exe" --x=%Unknown%`, "a", "b"); err == nil {
+	if _, err := parseFlowsealBat(`"%BIN%winws.exe" --x=%Unknown%`, "a", "b", gameFilterOff); err == nil {
 		t.Fatal("expected error for an unknown variable")
 	}
 }
@@ -122,7 +122,7 @@ func TestEmbeddedPayload(t *testing.T) {
 	}
 	for _, f := range files {
 		src, _ := os.ReadFile(f)
-		args, err := parseFlowsealBat(string(src), win+`\bin`, win+`\lists`)
+		args, err := parseFlowsealBat(string(src), win+`\bin`, win+`\lists`, gameFilterOn)
 		if err != nil {
 			t.Errorf("%s: %v", filepath.Base(f), err)
 			continue

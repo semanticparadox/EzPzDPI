@@ -30,15 +30,19 @@ type Strategy struct {
 // Key is the stable identifier stored in the config.
 func (s Strategy) Key() string { return string(s.Engine) + ":" + s.Name }
 
-// gameFilterOff mirrors Flowseal's service.bat default: the game filter
-// profile is pointed at a dummy port when it is disabled.
-const gameFilterOff = "12"
+// Game filter port ranges, as Flowseal's service.bat sets them: a dummy port
+// when the filter is off, all high ports when it is on.
+const (
+	gameFilterOff = "12"
+	gameFilterOn  = "1024-65535"
+)
 
 var errNoWinws = errors.New("в файле нет строки запуска winws.exe")
 
 // parseFlowsealBat extracts the winws.exe argument list from a Flowseal
-// general*.bat file and resolves its %BIN%, %LISTS% and game-filter variables.
-func parseFlowsealBat(src, binDir, listsDir string) ([]string, error) {
+// general*.bat file and resolves its %BIN%, %LISTS% and game-filter
+// variables (game is gameFilterOff or gameFilterOn).
+func parseFlowsealBat(src, binDir, listsDir, game string) ([]string, error) {
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	lines := strings.Split(src, "\n")
 	const marker = `winws.exe"`
@@ -68,9 +72,9 @@ func parseFlowsealBat(src, binDir, listsDir string) ([]string, error) {
 	cmd := strings.NewReplacer(
 		"%BIN%", withBackslash(binDir),
 		"%LISTS%", withBackslash(listsDir),
-		"%GameFilterTCP%", gameFilterOff,
-		"%GameFilterUDP%", gameFilterOff,
-		"%GameFilter%", gameFilterOff,
+		"%GameFilterTCP%", game,
+		"%GameFilterUDP%", game,
+		"%GameFilter%", game,
 	).Replace(b.String())
 	if i := strings.Index(cmd, "%"); i >= 0 {
 		end := min(len(cmd), i+24)
@@ -81,6 +85,20 @@ func parseFlowsealBat(src, binDir, listsDir string) ([]string, error) {
 		return nil, errNoWinws
 	}
 	return args, nil
+}
+
+// injectHostlist adds --hostlist=extra right after every reference to
+// Flowseal's list-general.txt, so EzPzDPI's own domains get the same
+// treatment in every profile that handles the general list.
+func injectHostlist(args []string, extra string) []string {
+	out := make([]string, 0, len(args)+4)
+	for _, a := range args {
+		out = append(out, a)
+		if strings.HasPrefix(a, "--hostlist=") && strings.HasSuffix(strings.ToLower(a), `\list-general.txt`) {
+			out = append(out, "--hostlist="+extra)
+		}
+	}
+	return out
 }
 
 func withBackslash(dir string) string {
@@ -158,7 +176,8 @@ func flowsealRank(name string) int {
 }
 
 // loadZapretStrategies parses every general*.bat in zapretDir/strategies.
-func loadZapretStrategies(zapretDir string) ([]Strategy, []error) {
+// extraList, when set, is added next to Flowseal's general host list.
+func loadZapretStrategies(zapretDir, game, extraList string) ([]Strategy, []error) {
 	files, _ := filepath.Glob(filepath.Join(zapretDir, "strategies", "general*.bat"))
 	binDir := filepath.Join(zapretDir, "bin")
 	listsDir := filepath.Join(zapretDir, "lists")
@@ -171,10 +190,13 @@ func loadZapretStrategies(zapretDir string) ([]Strategy, []error) {
 			continue
 		}
 		name := strings.TrimSuffix(filepath.Base(f), filepath.Ext(f))
-		args, err := parseFlowsealBat(string(data), binDir, listsDir)
+		args, err := parseFlowsealBat(string(data), binDir, listsDir, game)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", name, err))
 			continue
+		}
+		if extraList != "" {
+			args = injectHostlist(args, extraList)
 		}
 		out = append(out, Strategy{Name: name, Engine: EngineZapret, Args: args, rank: flowsealRank(name)})
 	}

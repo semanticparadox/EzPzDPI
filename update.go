@@ -106,7 +106,7 @@ func installFlowsealZip(data []byte, zapretDir string) (int, error) {
 		}
 		src, _ := io.ReadAll(io.LimitReader(rc, 1<<20))
 		rc.Close()
-		if _, err := parseFlowsealBat(string(src), `C:\b`, `C:\l`); err == nil {
+		if _, err := parseFlowsealBat(string(src), `C:\b`, `C:\l`, gameFilterOff); err == nil {
 			count++
 		}
 	}

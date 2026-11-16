@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EzPzDPI</title>
+<style>
+@font-face { font-family: "Onest"; src: url("fonts/Onest.woff2") format("woff2"); font-weight: 100 900; font-display: block; }
+@font-face { font-family: "Unbounded"; src: url("fonts/Unbounded.woff2") format("woff2"); font-weight: 200 900; font-display: block; }
+
+:root {
+  --paper: #eef2f3;
+  --paper-2: #e3e9eb;
+  --ink: #14202b;
+  --muted: #586775;
+  --faint: #a9b4bd;
+  --ok: #0e8a5f;
+  --detour: #f0a800;
+  --detour-ink: #1d1600;
+  --bad: #d2372b;
+  --slate: #7f8c99;
+  --stripe-a: #14202b;
+  --stripe-b: #f0a800;
+  --focus: #1f6feb;
+  --row-h: 46px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1720;
+    --paper-2: #17222d;
+    --ink: #e6edf2;
+    --muted: #93a3b1;
+    --faint: #3c4a57;
+    --ok: #34c58a;
+    --detour: #ffc233;
+    --detour-ink: #1d1600;
+    --bad: #ff5d4d;
+    --slate: #74838f;
+    --stripe-a: #e6edf2;
+    --stripe-b: #0f1720;
+    --focus: #6ea8ff;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.45 "Onest", "Segoe UI", sans-serif;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-width: 720px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+
+/* top bar */
+.top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px 0;
+}
+.wordmark { display: flex; align-items: center; gap: 10px; font: 700 17px/1 "Unbounded", sans-serif; letter-spacing: -0.01em; }
+.wordmark svg { display: block; }
+.ghost {
+  background: none; border: 0; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  color: var(--muted); font-weight: 500;
+}
+.ghost:hover { color: var(--ink); background: var(--paper-2); }
+
+/* verdict */
+.verdict {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px 32px; align-items: end;
+  padding: 22px 28px 18px;
+}
+.verdict h1 {
+  margin: 0; font: 600 30px/1.12 "Unbounded", sans-serif; letter-spacing: -0.02em;
+  max-width: 24ch; text-wrap: balance;
+}
+.verdict p { margin: 10px 0 0; color: var(--muted); max-width: 62ch; text-wrap: pretty; }
+.actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.primary {
+  min-width: 190px; height: 50px; padding: 0 26px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--detour); color: var(--detour-ink); font-weight: 650; font-size: 16px;
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.14);
+}
+.primary:hover { filter: brightness(1.05); }
+.primary:active { transform: translateY(1px); box-shadow: inset 0 -1px 0 rgba(0,0,0,.14); }
+.primary.calm { background: var(--ink); color: var(--paper); }
+.link {
+  background: none; border: 0; padding: 4px 2px; cursor: pointer; color: var(--muted);
+  text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px;
+}
+.link:hover { color: var(--ink); text-decoration-color: currentColor; }
+.progress { grid-column: 1 / -1; height: 4px; background: var(--paper-2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.progress > i { display: block; height: 100%; width: 0; background: var(--detour); transition: width .4s ease; }
+
+/* board */
+.board { min-height: 0; display: grid; grid-template-rows: auto 1fr; padding: 0 28px; }
+.legend {
+  display: grid; grid-template-columns: var(--route-col) 11.5rem 1fr; align-items: end;
+  font-size: 12.5px; color: var(--muted); padding: 0 0 6px;
+}
+.legend .you { position: relative; display: block; height: 18px; }
+.legend .you span { position: absolute; bottom: 0; white-space: nowrap; }
+.legend .you span + span { left: calc(var(--gate-x) - 7px); }
+.rows {
+  --route-col: minmax(240px, 1fr);
+  overflow-y: auto; overflow-x: hidden; min-height: 0;
+  border-top: 1px solid var(--paper-2);
+  scrollbar-width: thin; scrollbar-color: var(--faint) transparent;
+}
+.board { --route-col: minmax(240px, 1fr); }
+.group {
+  display: grid; grid-template-columns: var(--route-col) 11.5rem 1fr; align-items: center;
+  height: 30px; color: var(--muted); font-size: 12.5px; font-weight: 500;
+}
+.group .route-wrap { position: relative; align-self: stretch; }
+.group > span:last-child { grid-column: 2 / -1; padding: 6px 0 0 14px; }
+.row {
+  display: grid; grid-template-columns: var(--route-col) 11.5rem 1fr; align-items: start;
+  width: 100%; min-height: var(--row-h); padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  position: relative;
+}
+.row:hover .name { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.row .route-wrap { grid-row: 1 / span 2; align-self: stretch; position: relative; min-height: var(--row-h); }
+.route-wrap svg, .group .route-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+.row .name { font-weight: 600; padding: 12px 0 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .state { padding: 12px 8px 0 0; color: var(--muted); }
+.row[data-state="works"] .state, .row[data-state="fixed"] .state { color: var(--ink); }
+.row .detail {
+  grid-column: 2 / -1; display: none; padding: 2px 8px 12px 14px; color: var(--muted); font-size: 13.5px; max-width: 70ch;
+}
+.row[aria-expanded="true"] .detail { display: block; }
+
+/* status line */
+.status {
+  display: flex; align-items: center; gap: 18px; padding: 10px 28px 12px; color: var(--muted); font-size: 13.5px;
+  border-top: 1px solid var(--paper-2);
+}
+.status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--slate); flex: none; }
+.status.on .dot { background: var(--ok); }
+.status .grow { flex: 1; }
+
+/* route drawing */
+.trunk { stroke: var(--ink); stroke-width: 3; }
+.gate-a { fill: var(--stripe-a); }
+.gate-b { fill: var(--stripe-b); }
+.ln { fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.ln.ok { stroke: var(--ok); }
+.ln.detour { stroke: var(--detour); stroke-width: 4; }
+.ln.bad { stroke: var(--bad); }
+.ln.slate { stroke: var(--slate); }
+.ln.idle { stroke: var(--faint); }
+.ln.dash { stroke-dasharray: 2 7; }
+.ln.thin { stroke-width: 2; }
+.node { stroke-width: 2.5; }
+.node.ok { fill: var(--ok); stroke: var(--ok); }
+.node.detour { fill: var(--detour); stroke: var(--ink); stroke-width: 1.5; }
+.node.hollow { fill: var(--paper); stroke: var(--faint); }
+.node.bad { fill: var(--paper); stroke: var(--bad); }
+.cross { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
+.wall-end { stroke: var(--slate); stroke-width: 3.5; stroke-linecap: round; }
+.probe { fill: var(--ink); }
+@keyframes travel { from { transform: translateX(0); } to { transform: translateX(var(--travel)); } }
+.probe { animation: travel 1.4s cubic-bezier(.5,0,.5,1) infinite alternate; }
+@keyframes draw { from { stroke-dashoffset: var(--len); } to { stroke-dashoffset: 0; } }
+.ln.draw { stroke-dasharray: var(--len); animation: draw .9s cubic-bezier(.2,.7,.2,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .probe, .ln.draw { animation: none; }
+  .progress > i { transition: none; }
+}
+
+/* settings sheet */
+.scrim { position: fixed; inset: 0; background: rgba(10,16,22,.38); display: none; }
+.scrim.open { display: block; }
+.sheet {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); background: var(--paper);
+  border-left: 1px solid var(--paper-2); padding: 22px 26px; overflow-y: auto; display: none;
+}
+.sheet.open { display: block; }
+.sheet h2 { font: 600 20px/1.2 "Unbounded", sans-serif; margin: 0 0 18px; letter-spacing: -0.01em; }
+.sheet h3 { font-size: 15px; margin: 22px 0 8px; }
+.sheet p { color: var(--muted); margin: 4px 0; font-size: 14px; }
+.opt { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.opt input { margin-top: 3px; accent-color: var(--ok); width: 17px; height: 17px; }
+.opt small { display: block; color: var(--muted); font-size: 13px; }
+.svc-list { columns: 2; column-gap: 18px; }
+.svc-list label { display: flex; gap: 8px; align-items: center; padding: 3px 0; break-inside: avoid; }
+.svc-list input { accent-color: var(--ok); }
+.btn2 {
+  border: 1px solid var(--faint); background: none; border-radius: 10px; padding: 9px 14px; cursor: pointer; font-weight: 550;
+}
+.btn2:hover { border-color: var(--ink); }
+.btn2.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+select { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--faint); background: var(--paper); color: var(--ink); width: 100%; }
+.close { position: absolute; top: 16px; right: 16px; }
+
+@media (max-width: 860px) {
+  .verdict h1 { font-size: 25px; }
+  .board, .rows, .legend { --route-col: minmax(200px, 1fr); }
+  .row, .group, .legend { grid-template-columns: var(--route-col) 9.5rem 1fr; }
+  .primary { min-width: 160px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wordmark">
+    <svg width="34" height="24" viewBox="0 0 34 24" aria-hidden="true">
+      <rect x="14" y="2" width="6" height="20" rx="1.5" fill="currentColor"/>
+      <path d="M2 18 H8 C8 18 9 6 17 6 C25 6 26 18 26 18 H32" fill="none" stroke="#f0a800" stroke-width="3.5" stroke-linecap="round"/>
+    </svg>
+    EzPzDPI
+  </div>
+  <button class="ghost" id="open-settings">Настройки</button>
+</header>
+
+<section class="verdict" aria-live="polite">
+  <div>
+    <h1 id="v-title">Проверим, что у&nbsp;вас открывается</h1>
+    <p id="v-text"></p>
+  </div>
+  <div class="actions">
+    <button class="primary" id="main-btn">Проверить</button>
+    <button class="link" id="second-btn" hidden></button>
+  </div>
+  <div class="progress" id="progress" hidden><i></i></div>
+</section>
+
+<section class="board" aria-label="Доступ к сервисам">
+  <div class="legend" id="legend">
+    <span class="you"><span>Ваш компьютер</span><span>фильтр провайдера</span></span>
+    <span></span><span></span>
+  </div>
+  <div class="rows" id="rows" role="list"></div>
+</section>
+
+<footer class="status" id="status">
+  <span class="dot"></span>
+  <span class="grow" id="status-text">Обход выключен</span>
+  <button class="link" id="status-btn" hidden></button>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="sheet" id="sheet" aria-label="Настройки" role="dialog">
+  <button class="ghost close" id="close-settings" aria-label="Закрыть">Закрыть</button>
+  <h2>Настройки</h2>
+  <label class="opt"><input type="checkbox" id="opt-autostart" checked>
+    <span>Запускать вместе с Windows<small>Обход будет работать сразу после включения компьютера.</small></span></label>
+  <label class="opt"><input type="checkbox" id="opt-heal" checked>
+    <span>Чинить автоматически<small>При входе в Windows программа проверит сервисы и подберёт новый обход, если старый перестал работать.</small></span></label>
+  <label class="opt"><input type="checkbox" id="opt-games">
+    <span>Игровой режим<small>Обход для игр, которые соединяются не через браузерные порты. Может замедлить другие программы.</small></span></label>
+  <h3>Что проверять и чинить</h3>
+  <div class="svc-list" id="svc-list"></div>
+  <h3>Варианты обхода</h3>
+  <p id="strat-version">Набор Flowseal 1.10.4, 25 вариантов</p>
+  <p><button class="btn2" id="update-btn">Обновить с GitHub</button></p>
+  <p style="margin-top:12px">Выбрать вариант вручную</p>
+  <select id="manual"></select>
+  <h3>Если что-то пошло не так</h3>
+  <p><button class="btn2" id="log-btn">Открыть журнал</button></p>
+  <p style="margin-top:10px"><button class="btn2 danger" id="remove-btn">Выключить и удалить всё</button></p>
+  <p style="margin-top:18px">EzPzDPI <span id="app-version"></span>. Обход делают zapret, Flowseal и GoodbyeDPI. Исходный код на GitHub.</p>
+</aside>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
+
+const STATE_TEXT = {
+  unknown: "Не проверено",
+  testing: "Проверяю",
+  works: "Работает",
+  blocked: "Заблокирован",
+  throttled: "Замедлен",
+  fixed: "Работает через обход",
+  ip_block: "Блокировка по адресу, нужен VPN",
+  geo: "Сервис сам не работает с Россией",
+  dns: "Провайдер подменяет адрес",
+  partial: "Работает частично",
+  offline: "Нет соединения",
+};
+
+let state = null;
+let lastStates = {};
+
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+
+// Geometry shared by every row so the gate lines up into one barrier.
+function geometry(w) {
+  const gx = Math.round(w * 0.52);
+  return { w, gx, y: 23, x0: 6, xs: 22, xe: w - 12, half: 7 };
+}
+
+function drawGate(svg, g) {
+  // Diagonal barrier stripes; the 46px row is a multiple of the 11.5px stripe period.
+  const id = "st" + Math.random().toString(36).slice(2, 8);
+  const defs = el("defs", {}, svg);
+  const pat = el("pattern", { id, width: 11.5, height: 11.5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+  el("rect", { width: 11.5, height: 11.5, class: "gate-b" }, pat);
+  el("rect", { width: 5.75, height: 11.5, class: "gate-a" }, pat);
+  el("rect", { x: g.gx - g.half, y: 0, width: g.half * 2, height: "100%", fill: `url(#${id})` }, svg);
+}
+
+function drawTrunk(svg, g) {
+  el("line", { x1: g.x0, y1: 0, x2: g.x0, y2: "100%", class: "trunk" }, svg);
+}
+
+function routeFor(svg, g, s, animate) {
+  const { gx, y, xs, xe, half } = g;
+  const before = gx - half - 9;
+  const after = gx + half + 9;
+  const line = (d, cls) => el("path", { d, class: "ln " + cls }, svg);
+  el("path", { d: `M${g.x0} ${y} H${xs}`, class: "ln idle thin" }, svg);
+
+  switch (s.state) {
+    case "works":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${xe}`, "ok");
+      el("circle", { cx: xe, cy: y, r: 5.5, class: "node ok" }, svg);
+      break;
+    case "fixed": {
+      drawGate(svg, g);
+      const p = line(`M${xs} ${y} H${before - 6} C${before + 4} ${y} ${gx - 14} ${y - 17} ${gx} ${y - 17} C${gx + 14} ${y - 17} ${after - 4} ${y} ${after + 6} ${y} H${xe}`, "detour");
+      if (animate) { const len = Math.ceil(p.getTotalLength()); p.style.setProperty("--len", len); p.classList.add("draw"); }
+      el("circle", { cx: xe, cy: y, r: 6, class: "node detour" }, svg);
+      break;
+    }
+    case "blocked":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${before}`, "bad");
+      el("path", { d: `M${before - 4} ${y - 6} l8 12 M${before + 4} ${y - 6} l-8 12`, class: "cross" }, svg);
+      line(`M${after} ${y} H${xe}`, "idle dash thin");
+      el("circle", { cx: xe, cy: y, r: 5, class: "node hollow" }, svg);
+      break;
+    case "throttled":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${gx}`, "bad");
+      line(`M${gx + half + 4} ${y} H${xe}`, "bad dash thin");
+      el("circle", { cx: xe, cy: y, r: 5, class: "node bad" }, svg);
+      break;
+    case "ip_block":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${before - 18}`, "slate dash");
+      el("line", { x1: before - 12, y1: y - 8, x2: before - 12, y2: y + 8, class: "wall-end" }, svg);
+      break;
+    case "geo":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${xe - 10}`, "slate");
+      el("line", { x1: xe - 4, y1: y - 9, x2: xe - 4, y2: y + 9, class: "wall-end" }, svg);
+      break;
+    case "dns":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${before - 36} C${before - 22} ${y} ${before - 22} ${y - 13} ${before - 12} ${y - 13}`, "bad");
+      el("circle", { cx: before - 7, cy: y - 13, r: 4.5, class: "node bad" }, svg);
+      break;
+    case "partial":
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${before - 30}`, "ok");
+      line(`M${before - 30} ${y} C${before - 18} ${y} ${before - 18} ${y - 8} ${before - 6} ${y - 8} H${xe - 8} L${xe} ${y}`, "ok thin");
+      line(`M${before - 30} ${y} C${before - 18} ${y} ${before - 18} ${y + 8} ${before - 6} ${y + 8}`, "bad thin");
+      el("path", { d: `M${before - 2} ${y + 4} l6 8 M${before + 4} ${y + 4} l-6 8`, class: "cross", "stroke-width": 2.2 }, svg);
+      el("circle", { cx: xe, cy: y, r: 5, class: "node ok" }, svg);
+      break;
+    case "offline":
+      line(`M${xs} ${y} H${xs + 26}`, "slate dash");
+      drawGate(svg, g);
+      break;
+    case "testing": {
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${xe}`, "idle");
+      el("circle", { cx: xe, cy: y, r: 5, class: "node hollow" }, svg);
+      const dot = el("circle", { cx: xs, cy: y, r: 4, class: "probe" }, svg);
+      dot.style.setProperty("--travel", (xe - xs) + "px");
+      dot.style.animationDelay = (-Math.random() * 1.4).toFixed(2) + "s";
+      break;
+    }
+    default:
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${xe}`, "idle");
+      el("circle", { cx: xe, cy: y, r: 5, class: "node hollow" }, svg);
+  }
+  drawTrunk(svg, g);
+}
+
+function stateLabel(s) {
+  if (s.label) return s.label;
+  let t = STATE_TEXT[s.state] || s.state;
+  if ((s.state === "blocked" || s.state === "throttled") && s.fixable) t += ", чинится обходом";
+  return t;
+}
+
+const CATEGORY = { video: "Видео и соцсети", social: "Видео и соцсети", messenger: "Мессенджеры и звонки", games: "Игры", ai: "ИИ и работа", dev: "ИИ и работа", web: "Сайты" };
+
+function render() {
+  if (!state) return;
+  const v = state.verdict || {};
+  $("v-title").textContent = v.title || "";
+  $("v-text").textContent = v.text || "";
+  const main = $("main-btn");
+  main.textContent = v.action || "Проверить";
+  main.classList.toggle("calm", !!v.calm);
+  main.disabled = !!v.busy && !v.action;
+  const sec = $("second-btn");
+  sec.hidden = !v.second;
+  sec.textContent = v.second || "";
+  const prog = $("progress");
+  prog.hidden = !(state.progress && state.progress.n);
+  if (state.progress && state.progress.n) prog.firstElementChild.style.width = Math.round(100 * state.progress.i / state.progress.n) + "%";
+
+  const st = $("status");
+  st.classList.toggle("on", !!(state.bypass && state.bypass.on));
+  $("status-text").textContent = state.bypass && state.bypass.on
+    ? `Обход включён: ${state.bypass.strategy}${state.bypass.autostart ? ", запускается вместе с Windows" : ", до перезагрузки"}`
+    : "Обход выключен";
+  const sb = $("status-btn");
+  sb.hidden = !(state.bypass && state.bypass.on);
+  sb.textContent = "Выключить";
+
+  const rows = $("rows");
+  const width = rows.clientWidth;
+  const routeW = Math.max(200, Math.round(width * (width < 860 ? 0.36 : 0.42)));
+  rows.textContent = "";
+  let lastCat = "";
+  for (const s of state.services) {
+    const cat = CATEGORY[s.category] || "Другое";
+    if (cat !== lastCat) {
+      lastCat = cat;
+      const gr = document.createElement("div");
+      gr.className = "group";
+      const gw = document.createElement("span"); gw.className = "route-wrap";
+      const gs = el("svg", { class: "route" });
+      gw.appendChild(gs); gr.appendChild(gw);
+      const span = document.createElement("span");
+      span.textContent = cat;
+      gr.appendChild(span);
+      rows.appendChild(gr);
+      requestAnimationFrame(() => {
+        const g = geometry(gs.clientWidth || routeW);
+        g.y = 15;
+        drawGate(gs, g); drawTrunk(gs, g);
+      });
+    }
+    const row = document.createElement("button");
+    row.className = "row";
+    row.dataset.state = s.state;
+    row.setAttribute("role", "listitem");
+    row.setAttribute("aria-expanded", "false");
+    const wrap = document.createElement("span"); wrap.className = "route-wrap";
+    const svg = el("svg", { class: "route", "aria-hidden": "true" });
+    wrap.appendChild(svg); row.appendChild(wrap);
+    const name = document.createElement("span"); name.className = "name"; name.textContent = s.name; row.appendChild(name);
+    const lab = document.createElement("span"); lab.className = "state"; lab.textContent = stateLabel(s); row.appendChild(lab);
+    const det = document.createElement("span"); det.className = "detail"; det.textContent = s.detail || "Подробностей нет."; row.appendChild(det);
+    row.addEventListener("click", () => row.setAttribute("aria-expanded", row.getAttribute("aria-expanded") === "true" ? "false" : "true"));
+    rows.appendChild(row);
+    const animate = s.state === "fixed" && lastStates[s.id] && lastStates[s.id] !== "fixed";
+    requestAnimationFrame(() => routeFor(svg, geometry(svg.clientWidth || routeW), s, animate));
+  }
+  lastStates = Object.fromEntries(state.services.map((s) => [s.id, s.state]));
+  requestAnimationFrame(placeLegend);
+  renderSettings();
+}
+
+function placeLegend() {
+  const first = document.querySelector(".row .route-wrap");
+  if (!first) return;
+  const g = geometry(first.clientWidth);
+  $("legend").style.setProperty("--gate-x", g.gx + "px");
+}
+
+function renderSettings() {
+  if (!state.settings) return;
+  $("opt-autostart").checked = !!state.settings.autostart;
+  $("opt-heal").checked = !!state.settings.heal;
+  $("opt-games").checked = !!state.settings.games;
+  const list = $("svc-list");
+  if (!list.childElementCount) {
+    for (const s of state.services) {
+      const l = document.createElement("label");
+      const i = document.createElement("input"); i.type = "checkbox"; i.value = s.id;
+      i.checked = !(state.settings.disabled || []).includes(s.id);
+      i.addEventListener("change", sendSettings);
+      l.appendChild(i); l.appendChild(document.createTextNode(s.name)); list.appendChild(l);
+    }
+  }
+  const sel = $("manual");
+  if (!sel.childElementCount && state.strategies) {
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Автоматически (рекомендуется)"; sel.appendChild(o0);
+    for (const k of state.strategies) { const o = document.createElement("option"); o.value = k.key; o.textContent = k.name; sel.appendChild(o); }
+  }
+  if (state.versions) {
+    $("strat-version").textContent = `Набор Flowseal ${state.versions.flowseal}, ${state.strategies ? state.strategies.length : 0} вариантов`;
+    $("app-version").textContent = state.versions.app;
+  }
+}
+
+function sendSettings() {
+  const disabled = [...document.querySelectorAll("#svc-list input")].filter((i) => !i.checked).map((i) => i.value);
+  call("ezpzSettings", { autostart: $("opt-autostart").checked, heal: $("opt-heal").checked, games: $("opt-games").checked, disabled });
+}
+
+// Bridge: Go binds ezpz* functions; without them the page runs a demo.
+function call(name, arg) {
+  if (typeof window[name] === "function") return window[name](arg);
+  return demoCall(name, arg);
+}
+window.ezpzState = (s) => { state = s; render(); };
+
+$("main-btn").addEventListener("click", () => call("ezpzMain"));
+$("second-btn").addEventListener("click", () => call("ezpzSecond"));
+$("status-btn").addEventListener("click", () => call("ezpzStop"));
+const openSheet = (open) => { $("sheet").classList.toggle("open", open); $("scrim").classList.toggle("open", open); if (open) $("close-settings").focus(); };
+$("open-settings").addEventListener("click", () => openSheet(true));
+$("close-settings").addEventListener("click", () => openSheet(false));
+$("scrim").addEventListener("click", () => openSheet(false));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") openSheet(false); });
+for (const id of ["opt-autostart", "opt-heal", "opt-games"]) $(id).addEventListener("change", sendSettings);
+$("update-btn").addEventListener("click", () => call("ezpzUpdate"));
+$("log-btn").addEventListener("click", () => call("ezpzOpenLog"));
+$("remove-btn").addEventListener("click", () => call("ezpzUninstall"));
+$("manual").addEventListener("change", (e) => call("ezpzManual", e.target.value));
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 80); });
+
+/* ---------- demo data (used only when opened outside the app) ---------- */
+const DEMO_SERVICES = [
+  ["youtube", "YouTube", "video"], ["instagram", "Instagram", "social"], ["x", "X (Twitter)", "social"], ["twitch", "Twitch", "video"],
+  ["telegram", "Telegram", "messenger"], ["whatsapp", "WhatsApp", "messenger"], ["discord", "Discord", "messenger"],
+  ["roblox", "Roblox", "games"], ["faceit", "FACEIT", "games"], ["steam", "Steam", "games"],
+  ["chatgpt", "ChatGPT", "ai"], ["cloudflare", "Сайты на Cloudflare", "web"],
+];
+function demoServices(map, detail) {
+  return DEMO_SERVICES.map(([id, name, category]) => ({ id, name, category, state: map[id] || "unknown", fixable: ["youtube", "discord", "roblox", "faceit", "cloudflare"].includes(id), detail: (detail && detail[id]) || "" }));
+}
+const DEMO_DETAIL = {
+  youtube: "www.youtube.com: обрыв после 18 КБ (замедление). i.ytimg.com: TLS завис.",
+  discord: "discord.com: TLS завис, блок по имени сайта. Обход должен помочь.",
+  instagram: "Соединение не устанавливается даже без имени сайта: адреса Meta заблокированы. Поможет только VPN.",
+  x: "Адреса заблокированы. Поможет только VPN.",
+  whatsapp: "Сообщения доходят, звонки заблокированы с августа 2025 года.",
+  chatgpt: "OpenAI отвечает «страна не поддерживается»: это ограничение самого сервиса, обход его не снимает.",
+  cloudflare: "Сайты на серверах Cloudflare замирают после 16 КБ. Обход это лечит.",
+};
+const DEMOS = {
+  idle: () => ({ verdict: { title: "Проверим, что у\u00a0вас открывается", text: "EzPzDPI проверит 12 сервисов, это займёт полминуты. Пока вы не нажмёте «Починить», в системе ничего не меняется.", action: "Проверить" }, services: demoServices({}) }),
+  checking: () => ({ verdict: { title: "Проверяю", text: "YouTube, Discord и ещё 10 сервисов.", busy: true, action: "Остановить", calm: true }, services: demoServices(Object.fromEntries(DEMO_SERVICES.map(([id]) => [id, "testing"]))) }),
+  diagnosed: () => ({
+    verdict: { title: "Не работают 7 из 12", text: "Обход починит YouTube, Discord, Roblox, FACEIT и сайты на Cloudflare. Instagram и X блокируют по адресу, для них нужен VPN. ChatGPT сам не работает с Россией.", action: "Починить", second: "Проверить снова" },
+    services: demoServices({ youtube: "throttled", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "blocked", roblox: "blocked", faceit: "blocked", steam: "works", chatgpt: "geo", cloudflare: "throttled" }, DEMO_DETAIL),
+  }),
+  fixing: () => ({
+    verdict: { title: "Подбираю обход", text: "Проверено 9 из 25 вариантов, сейчас general (ALT8). Обычно хватает 1–4 минут.", action: "Остановить", calm: true, busy: true },
+    progress: { i: 9, n: 25 },
+    services: demoServices({ youtube: "fixed", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "testing", roblox: "testing", faceit: "testing", steam: "works", chatgpt: "geo", cloudflare: "fixed" }, DEMO_DETAIL),
+  }),
+  fixed: () => ({
+    verdict: { title: "Починено 5 из 5", text: "Обход включён и будет запускаться вместе с Windows. Если Discord был открыт, закройте его через значок в трее и откройте снова.", action: "Проверить снова", calm: true, second: "Почему Instagram не работает" },
+    bypass: { on: true, strategy: "general (ALT3)", autostart: true },
+    services: demoServices({ youtube: "fixed", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "fixed", roblox: "fixed", faceit: "fixed", steam: "works", chatgpt: "geo", cloudflare: "fixed" }, DEMO_DETAIL),
+  }),
+};
+function demoState(name) {
+  const s = DEMOS[name] ? DEMOS[name]() : DEMOS.idle();
+  s.settings = s.settings || { autostart: true, heal: true, games: false, disabled: [] };
+  s.versions = { app: "0.2.0", flowseal: "1.10.4" };
+  s.strategies = [{ key: "zapret:general", name: "general" }, { key: "zapret:general (ALT)", name: "general (ALT)" }];
+  s.bypass = s.bypass || { on: false };
+  return s;
+}
+function demoCall(name) {
+  const order = ["idle", "checking", "diagnosed", "fixing", "fixed"];
+  if (name === "ezpzMain") {
+    const cur = (location.hash.replace("#", "") || "idle");
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    location.hash = next;
+  }
+  return Promise.resolve(null);
+}
+function demoFromHash() { state = demoState(location.hash.replace("#", "")); render(); }
+if (typeof window.ezpzMain !== "function") {
+  window.addEventListener("hashchange", demoFromHash);
+  document.fonts.ready.then(demoFromHash);
+}
+</script>
+</body>
+</html>
