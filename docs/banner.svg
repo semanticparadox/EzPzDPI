@@ -1,16 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180" role="img" aria-labelledby="t d">
   <title id="t">EzPzDPI</title>
-  <desc id="d">EzPzDPI: обход блокировок YouTube и Discord на Windows</desc>
+  <desc id="d">EzPzDPI: проверка и обход блокировок на Windows</desc>
   <style>
-    text { font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif; }
+    text { font-family: "Unbounded", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+    .sub { font-family: "Onest", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
   </style>
-  <rect x="0" y="0" width="720" height="180" rx="18" fill="#f5f0e6"/>
-  <!-- mark: a packet path that slips under a wall -->
-  <g transform="translate(40 42)">
-    <rect x="44" y="0" width="14" height="96" rx="3" fill="#2b2b2b"/>
-    <path d="M0 74 H30 C44 74 44 116 58 116 H72 C86 116 86 74 100 74 H112" fill="none" stroke="#d0451b" stroke-width="8" stroke-linecap="round"/>
-    <circle cx="112" cy="74" r="10" fill="#d0451b"/>
+  <defs>
+    <pattern id="stripe" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="12" height="12" fill="#f0a800"/>
+      <rect width="6" height="12" fill="#14202b"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="720" height="180" rx="18" fill="#eef2f3"/>
+  <!-- route board in miniature: a line hops over the ISP barrier -->
+  <g transform="translate(36 40)">
+    <line x1="4" y1="0" x2="4" y2="100" stroke="#14202b" stroke-width="4"/>
+    <rect x="62" y="0" width="16" height="100" fill="url(#stripe)"/>
+    <path d="M4 78 H44 C54 78 54 44 70 44 C86 44 86 78 96 78 H122" fill="none" stroke="#f0a800" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="122" cy="78" r="8" fill="#f0a800" stroke="#14202b" stroke-width="2"/>
+    <path d="M4 28 H40" stroke="#d2372b" stroke-width="5" stroke-linecap="round"/>
+    <path d="M44 22 l10 12 M54 22 l-10 12" stroke="#d2372b" stroke-width="4" stroke-linecap="round"/>
   </g>
-  <text x="182" y="104" font-size="64" font-weight="800" fill="#1b1b1b" letter-spacing="-1">Ez<tspan fill="#d0451b">Pz</tspan>DPI</text>
-  <text x="185" y="140" font-size="20" fill="#5a5650">YouTube и Discord без ручного перебора bat-файлов</text>
+  <text x="190" y="102" font-size="56" font-weight="700" fill="#14202b" letter-spacing="-1">EzPzDPI</text>
+  <text class="sub" x="192" y="138" font-size="17.5" fill="#586775">Проверка и обход блокировок на Windows в одно нажатие</text>
 </svg>

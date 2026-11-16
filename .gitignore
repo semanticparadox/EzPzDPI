@@ -2,3 +2,5 @@
 assets/payload.zip
 dist/
 graphify-out/
+winres/winres.json
+rsrc_windows_*.syso

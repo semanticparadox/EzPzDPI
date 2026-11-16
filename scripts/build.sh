@@ -3,7 +3,7 @@
 # SHA-256, assembles assets/payload.zip, runs vet/tests and cross-compiles.
 set -euo pipefail
 
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.0}"
 
 FLOWSEAL_VER="1.10.4"
 FLOWSEAL_URL="https://github.com/Flowseal/zapret-discord-youtube/releases/download/${FLOWSEAL_VER}/zapret-discord-youtube-${FLOWSEAL_VER}.zip"
@@ -59,10 +59,15 @@ PY
 echo "payload: $(du -h "$ROOT/assets/payload.zip" | cut -f1)"
 
 cd "$ROOT"
+# Windows resources: icon, manifest (requireAdministrator, per-monitor DPI v2)
+# and version info, compiled into rsrc_windows_amd64.syso.
+VER4="$(echo "$VERSION" | awk -F. '{printf "%d.%d.%d.0", $1, $2, $3}')"
+sed -e "s/@VER4@/$VER4/g" -e "s/@VER@/$VERSION/g" winres/winres.json.tmpl > winres/winres.json
+(cd winres && go run github.com/tc-hib/go-winres@v0.3.3 make --in winres.json --out ../rsrc --arch amd64)
 gofmt -l . | grep -v '^.cache/' && { echo "gofmt needed" >&2; exit 1; } || true
 go vet ./...
 GOOS=windows GOARCH=amd64 go vet ./...
 go test ./...
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o dist/EzPzDPI.exe .
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -H windowsgui -X main.version=$VERSION" -o dist/EzPzDPI.exe .
 (cd dist && sha256sum EzPzDPI.exe | tee EzPzDPI.exe.sha256)
 ls -la dist/EzPzDPI.exe

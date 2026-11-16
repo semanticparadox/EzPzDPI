@@ -19,6 +19,20 @@ Go libraries compiled into `EzPzDPI.exe`:
 | github.com/refraction-networking/utls | BSD-3-Clause |
 | golang.org/x/net, golang.org/x/sys, golang.org/x/crypto | BSD-3-Clause |
 | github.com/klauspost/compress, github.com/andybalholm/brotli | BSD-3-Clause / MIT |
+| github.com/jchv/go-webview2 | MIT |
+| github.com/jchv/go-winloader | ISC |
+| Microsoft WebView2 SDK `WebView2Loader.dll` (embedded by go-webview2) | BSD-3-Clause |
+
+Fonts embedded in the window:
+
+| Font | License | Source |
+|---|---|---|
+| Onest | SIL Open Font License 1.1 | https://github.com/googlefonts/onest |
+| Unbounded | SIL Open Font License 1.1 | https://github.com/googlefonts/unbounded |
+
+The window needs the Microsoft Edge WebView2 Runtime, which ships with
+Windows 11 and current Windows 10. If it is missing, EzPzDPI offers to
+download Microsoft's official installer and checks its signature first.
 
 The LGPL components are distributed as separate, unmodified files and can be
 replaced by the user: put another build of `WinDivert.dll` / `WinDivert64.sys`

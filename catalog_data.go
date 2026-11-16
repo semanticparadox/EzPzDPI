@@ -8,19 +8,19 @@ var catalog = []Service{
 	{
 		ID: "youtube", Name: "YouTube", Category: "video", Default: true,
 		Targets: []Target{
-			{Host: "www.youtube.com", Path: "/generate_204"},
-			{Host: "www.youtube.com", Path: "/", MinBytes: 256 << 10},
-			{Host: "i.ytimg.com", Path: "/vi/dQw4w9WgXcQ/default.jpg", MinBytes: 2500},
-			{Host: "redirector.googlevideo.com", Path: "/report_mapping", MinBytes: 256 << 10},
+			{Host: "www.youtube.com", Path: "/generate_204", Label: "сайт"},
+			{Host: "www.youtube.com", Path: "/", MinBytes: 256 << 10, Label: "главная страница"},
+			{Host: "i.ytimg.com", Path: "/vi/dQw4w9WgXcQ/default.jpg", MinBytes: 2500, Label: "превью"},
+			{Host: "redirector.googlevideo.com", Path: "/report_mapping", MinBytes: 256 << 10, Label: "видео"},
 		},
 		Note: "Если сайт открывается, а видео зависает, отключите QUIC в браузере (chrome://flags/#enable-quic) и блокировщик рекламы.",
 	},
 	{
 		ID: "twitch", Name: "Twitch", Category: "video", Default: true, NoBypass: true,
 		Targets: []Target{
-			{Host: "www.twitch.tv", Path: "/", MinBytes: 64 << 10},
-			{Host: "gql.twitch.tv", Path: "/"},
-			{Host: "usher.ttvnw.net", Path: "/"},
+			{Host: "www.twitch.tv", Path: "/", MinBytes: 64 << 10, Label: "сайт"},
+			{Host: "gql.twitch.tv", Path: "/", Label: "чат и данные"},
+			{Host: "usher.ttvnw.net", Path: "/", Label: "трансляции"},
 		},
 		Note: "Набор Flowseal намеренно не пропускает Twitch через обход: так он ломается реже.",
 	},
@@ -71,7 +71,7 @@ var catalog = []Service{
 			{Host: "telegram.org", Path: "/", MinBytes: 16 << 10},
 			{Host: "web.telegram.org", Path: "/", MinBytes: 1 << 10},
 			{Host: "t.me", Path: "/telegram", MinBytes: 8 << 10},
-			{Host: "149.154.167.220", Path: "", TCPOnly: true},
+			{Host: "149.154.167.220", Path: "", TCPOnly: true, Optional: true, Label: "приложение"},
 		},
 		Domains: []string{"telegram.org", "t.me", "telegram.me", "telesco.pe", "cdn-telegram.org", "telegra.ph", "tdesktop.com"},
 		Known:   "Звонки в Telegram блокируются с августа 2025 года.",
@@ -90,10 +90,10 @@ var catalog = []Service{
 	{
 		ID: "discord", Name: "Discord", Category: "messenger", Default: true,
 		Targets: []Target{
-			{Host: "discord.com", Path: "/api/v10/gateway", MinBytes: 20},
-			{Host: "discord.com", Path: "/", MinBytes: 64 << 10},
-			{Host: "cdn.discordapp.com", Path: "/embed/avatars/0.png", MinBytes: 1000},
-			{Host: "gateway.discord.gg", Path: "/"},
+			{Host: "discord.com", Path: "/api/v10/gateway", MinBytes: 20, Label: "вход"},
+			{Host: "discord.com", Path: "/", MinBytes: 64 << 10, Label: "сайт"},
+			{Host: "cdn.discordapp.com", Path: "/embed/avatars/0.png", MinBytes: 1000, Label: "картинки"},
+			{Host: "gateway.discord.gg", Path: "/", Label: "чат"},
 		},
 		Domains: []string{"discord.com", "discord.gg", "discord.media", "discordapp.com", "discordapp.net", "discordcdn.com", "discord.gift", "discord.gifts", "dis.gd"},
 		Note:    "Голосовые каналы автоматически не проверяются. Если голос обрывается, смотрите строку «Звонки и голос».",
@@ -182,7 +182,7 @@ var catalog = []Service{
 		Domains: []string{"pypi.org", "pythonhosted.org"},
 	},
 	{
-		ID: "docker", Name: "Docker Hub", Category: "ai", ProviderGeo: true,
+		ID: "docker", Name: "Docker Hub", Category: "ai",
 		Targets:  []Target{{Host: "registry-1.docker.io", Path: "/v2/"}},
 		GeoCodes: []int{403},
 		Advice:   "Docker Hub сам отказывает российским адресам. Используйте зеркало реестра.",
@@ -209,7 +209,7 @@ var catalog = []Service{
 	},
 	{
 		ID: "hosting", Name: "Сайты на зарубежном хостинге", Category: "web", Default: true,
-		Targets: []Target{{Host: "fsn1-speed.hetzner.com", Path: "/100MB.bin", MinBytes: 64 << 10}},
+		Targets: []Target{{Host: "fsn1-speed.hetzner.com", Path: "/100MB.bin", MinBytes: 64 << 10, Range: "bytes=0-65535", UA: "Wget/1.21"}},
 		Note:    "Проверка скачивает 64 КБ с серверов Hetzner: так видно ограничение на зарубежный хостинг.",
 	},
 	{

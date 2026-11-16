@@ -1,0 +1,1457 @@
+{
+ "synthesis": {
+  "services": [
+   {
+    "id": "youtube",
+    "name": "YouTube",
+    "category": "video",
+    "blocker": "mixed: since 2026-02-10 removed from the national DNS (NSDI); many ISP resolvers return NXDOMAIN, but not all (Rostelecom DNS still resolved in Feb). Since summer 2024 TSPU has throttled *.googlevideo.com video. Aug-Nov 2026: on many ISPs the page opens but video stalls or shows a black screen, on every Flowseal strategy (community reports).",
+    "what_users_see_ru": "Сайт не открывается («адрес не найден») или открывается, но видео не грузится, превью пустые, ролик зависает через несколько секунд или минут.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Сначала включите защищённый DNS: без него стратегия не поможет. Потом подберите стратегию. Если видео всё равно зависает, отключите QUIC в браузере и выключите блокировщик рекламы. Универсального решения сейчас нет: результат зависит от провайдера и меняется со временем. Если не помогло ничего, нужен VPN.",
+    "domains": [
+     "youtube.com",
+     "youtu.be",
+     "googlevideo.com",
+     "ytimg.com",
+     "yt3.ggpht.com",
+     "yt4.ggpht.com",
+     "youtube-nocookie.com",
+     "youtubei.googleapis.com",
+     "youtube.googleapis.com",
+     "youtubeembeddedplayer.googleapis.com",
+     "jnn-pa.googleapis.com",
+     "youtubekids.com",
+     "wide-youtube.l.google.com"
+    ],
+    "domains_already_in_flowseal": [
+     "youtube.com",
+     "youtu.be",
+     "googlevideo.com",
+     "ytimg.com (covers i.ytimg.com)",
+     "yt3.ggpht.com",
+     "yt4.ggpht.com",
+     "youtube-nocookie.com",
+     "youtubei.googleapis.com",
+     "youtube.googleapis.com",
+     "youtubeembeddedplayer.googleapis.com",
+     "jnn-pa.googleapis.com",
+     "youtubekids.com",
+     "wide-youtube.l.google.com"
+    ],
+    "test_targets": [
+     {
+      "host": "www.youtube.com",
+      "path": "/generate_204",
+      "min_bytes": 0,
+      "geo_block_signature": "HTTP 204 with an empty body proves only that the TLS path is open. NXDOMAIN from the system resolver but real IPs via DoH = DNS (NSDI) block. YouTube does not geo-block Russia itself."
+     },
+     {
+      "host": "www.youtube.com",
+      "path": "/",
+      "min_bytes": 262144,
+      "geo_block_signature": "Baseline is about 873 KB (US). Headers arrive, then the body stalls after about 16-25 KB = network throttling, not a geo-block."
+     },
+     {
+      "host": "i.ytimg.com",
+      "path": "/vi/dQw4w9WgXcQ/default.jpg",
+      "min_bytes": 2500,
+      "geo_block_signature": "2,888 B JPEG. A failure here while www.youtube.com works = missing thumbnails."
+     },
+     {
+      "host": "redirector.googlevideo.com",
+      "path": "/report_mapping",
+      "min_bytes": 262144,
+      "geo_block_signature": "About 700 KB text. This is the video-host throughput test: measure kbps and repeat over at least 30 s. A low rate or a stall = googlevideo throttling. A 204 on /generate_204 is not enough."
+     }
+    ],
+    "sources": [
+     "https://novayagazeta.eu/articles/2026/02/11/ne-prosto-blokiruiut-a-slovno-stiraiut",
+     "https://meduza.io/feature/2026/02/11/vse-pishut-chto-v-rossii-primenili-novyy-sposob-blokirovki-yutyuba-instagrama-i-votsapa",
+     "https://ura.news/news/1053068544",
+     "https://en.zona.media/article/2026/04/07/russian_internet_censorship_2026",
+     "https://ru.themoscowtimes.com/2026/09/22/rossiyane-vopreki-blokirovkam-stali-nachetvert-bolshe-smotret-youtube-a206640",
+     "https://github.com/Flowseal/zapret-discord-youtube/discussions/251",
+     "https://github.com/Flowseal/zapret-discord-youtube/discussions/16448",
+     "https://github.com/Flowseal/zapret-discord-youtube/issues/18162",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-google.txt",
+     "https://meduza.io/en/feature/2024/07/12/traffic-speeds-reveal-that-russia-s-youtube-slowdown-is-targeted-throttling-not-google-global-cache-equipment-failure"
+    ]
+   },
+   {
+    "id": "twitch",
+    "name": "Twitch",
+    "category": "video",
+    "blocker": "unknown: RKN denied restricting Twitch in June 2026. On 2026-06-23/24 the player showed a black screen while the site and chat worked; the AWS-IP explanation is third-hand. twitch.tv is in Flowseal list-exclude, so the bundle does not route it through the bypass by default.",
+    "what_users_see_ru": "Сайт и чат открываются, но вместо трансляции чёрный экран или бесконечная загрузка.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Официальной блокировки Twitch нет. Если не работает плеер, это может быть сбой или ограничение облачных адресов, и обход DPI помогает не всегда. Попробуйте позже. Если проблема держится, нужен VPN.",
+    "domains": [
+     "twitch.tv",
+     "usher.ttvnw.net",
+     "gql.twitch.tv",
+     "live-video.net",
+     "frankerfacez.com",
+     "ffzap.com",
+     "betterttv.net",
+     "7tv.app",
+     "7tv.io"
+    ],
+    "domains_already_in_flowseal": [
+     "live-video.net",
+     "frankerfacez.com",
+     "ffzap.com",
+     "betterttv.net",
+     "7tv.app",
+     "7tv.io",
+     "twitch.tv is in list-exclude (deliberately not bypassed)"
+    ],
+    "test_targets": [
+     {
+      "host": "www.twitch.tv",
+      "path": "/",
+      "min_bytes": 65536,
+      "geo_block_signature": "Baseline about 225 KB. A body stall after about 16-25 KB = throttling. There is no known geo-block page."
+     },
+     {
+      "host": "gql.twitch.tv",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Returns 400 to a plain GET, which is normal. Any HTTP response = reachable."
+     },
+     {
+      "host": "usher.ttvnw.net",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "An empty 403 is the normal baseline from the US, not a geo-block. Any HTTP response = reachable."
+     }
+    ],
+    "sources": [
+     "https://esports.ru/striming/news/pleer-twitch-v-rossii-snova-perestal-rabota/",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Categories/geoblock.lst",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-general.txt",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-exclude.txt"
+    ]
+   },
+   {
+    "id": "tiktok",
+    "name": "TikTok",
+    "category": "video",
+    "blocker": "unknown: authorities blocked TikTok 'to some extent' in March 2022 (re-russia). The current mechanism is unverified, and there is no source that TikTok itself refuses Russia.",
+    "what_users_see_ru": "Лента и видео грузятся с ошибками или не грузятся совсем.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Как именно ограничен TikTok сейчас, неизвестно. Программа проверит это на вашей сети. Если обход не помог, нужен VPN.",
+    "domains": [
+     "tiktok.com",
+     "tiktokv.com",
+     "tiktokcdn.com",
+     "byteoversea.com",
+     "ibytedtos.com",
+     "muscdn.com",
+     "musical.ly",
+     "tik-tokapi.com",
+     "ttwstatic.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.tiktok.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline size not measured. Any HTTP response with a valid certificate = TLS path open. Classify a reset or timeout via the generic rules."
+     }
+    ],
+    "sources": [
+     "https://re-russia.net/en/analytics/0414/",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/tiktok.lst"
+    ]
+   },
+   {
+    "id": "spotify",
+    "name": "Spotify",
+    "category": "video",
+    "blocker": "provider_geo: per the Flowseal README, Spotify itself blocked Russian users. spotify.com is in the itdoginfo geoblock list (community). One user in Flowseal discussion 17411 reported it worked with alt9 (anecdote).",
+    "what_users_see_ru": "Приложение пишет, что сервис недоступен в вашей стране, или не даёт войти и оплатить.",
+    "dpi_fixable": "no",
+    "advice_ru": "Spotify сам ограничил пользователей из России, поэтому программа обхода блокировок здесь, скорее всего, не поможет. Нужен зарубежный IP-адрес (VPN), а для оплаты — зарубежный аккаунт.",
+    "domains": [
+     "spotify.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "open.spotify.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Spotify's geo-refusal page format is not documented. Valid TLS plus an HTTP response = network open, so any failure is on the service side."
+     }
+    ],
+    "sources": [
+     "https://github.com/Flowseal/zapret-discord-youtube",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Categories/geoblock.lst",
+     "https://github.com/Flowseal/zapret-discord-youtube/discussions/17411"
+    ]
+   },
+   {
+    "id": "soundcloud",
+    "name": "SoundCloud",
+    "category": "video",
+    "blocker": "rkn_registry (2022, over 'unreliable information' about the war); mechanism unverified.",
+    "what_users_see_ru": "Сайт и треки не открываются.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Сайт заблокирован с 2022 года, но каким способом — неизвестно. Программа проверит. Если обход не помог, нужен VPN.",
+    "domains": [
+     "soundcloud.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "soundcloud.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Use the generic rules."
+     }
+    ],
+    "sources": [
+     "https://ura.news/news/1053068544"
+    ]
+   },
+   {
+    "id": "meta",
+    "name": "Instagram / Facebook / Messenger / Threads",
+    "category": "social",
+    "blocker": "mixed: blocked since March 2022 (Meta declared extremist). www.instagram.com, www.facebook.com and www.messenger.com were removed from NSDI by 2026-02-11. The network-level mechanism is unverified, and no 2025-2026 source shows that DPI bypass works.",
+    "what_users_see_ru": "Сайт не открывается: «адрес не найден» или бесконечная загрузка.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Включите защищённый DNS. Подтверждений, что обход DPI открывает Instagram и Facebook в 2026 году, нет. Если проверка не прошла, нужен VPN.",
+    "domains": [
+     "instagram.com",
+     "cdninstagram.com",
+     "ig.me",
+     "facebook.com",
+     "fb.com",
+     "fbcdn.net",
+     "fbsbx.com",
+     "facebook.net",
+     "messenger.com",
+     "threads.net",
+     "threads.com",
+     "meta.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.instagram.com",
+      "path": "/",
+      "min_bytes": 131072,
+      "geo_block_signature": "Baseline about 390 KB. NXDOMAIN via the system resolver but real IPs via DoH = NSDI block."
+     },
+     {
+      "host": "www.facebook.com",
+      "path": "/",
+      "min_bytes": 131072,
+      "geo_block_signature": "Baseline about 370 KB."
+     },
+     {
+      "host": "scontent.cdninstagram.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "204 empty = TLS path open."
+     }
+    ],
+    "sources": [
+     "https://novayagazeta.eu/articles/2026/02/11/ne-prosto-blokiruiut-a-slovno-stiraiut",
+     "https://ura.news/news/1053068544",
+     "https://kyivindependent.com/russia-blocks-whatsapp-amid-broader-crackdown-on-social-media/",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/meta.lst"
+    ]
+   },
+   {
+    "id": "x-twitter",
+    "name": "X (Twitter)",
+    "category": "social",
+    "blocker": "unknown: throttled in 2021 (then by TLS SNI) and fully blocked in early March 2022. The current mechanism is unestablished.",
+    "what_users_see_ru": "Сайт не открывается или открывается без картинок и видео.",
+    "dpi_fixable": "partial",
+    "advice_ru": "X заблокирован с 2022 года. Обход DPI может помочь, но в 2026 году это не подтверждено. Программа проверит на вашей сети. Если не помогло, нужен VPN.",
+    "domains": [
+     "x.com",
+     "twitter.com",
+     "t.co",
+     "twimg.com",
+     "twttr.com",
+     "twitter.biz",
+     "ads-twitter.com",
+     "cms-twdigitalassets.com",
+     "periscope.tv",
+     "pscp.tv",
+     "tweetdeck.com",
+     "twitpic.com",
+     "twitterinc.com",
+     "twitteroauth.com",
+     "twtrdns.net",
+     "twttr.net",
+     "twvid.com",
+     "vine.co"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "x.com",
+      "path": "/",
+      "min_bytes": 32768,
+      "geo_block_signature": "Baseline about 46 KB. X has no known geo-block page for Russia."
+     },
+     {
+      "host": "abs.twimg.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "An empty 400 at the root is normal. Any HTTP response = reachable. Prefer a real asset path."
+     }
+    ],
+    "sources": [
+     "https://ura.news/news/1053068544",
+     "https://re-russia.net/en/analytics/0414/",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/twitter.lst"
+    ]
+   },
+   {
+    "id": "linkedin",
+    "name": "LinkedIn",
+    "category": "social",
+    "blocker": "rkn_registry since 2016 (data-localisation law); mechanism unverified.",
+    "what_users_see_ru": "Сайт не открывается.",
+    "dpi_fixable": "partial",
+    "advice_ru": "LinkedIn заблокирован с 2016 года, способ блокировки неизвестен. Программа проверит. Если обход не помог, нужен VPN.",
+    "domains": [
+     "linkedin.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.linkedin.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Use the generic rules."
+     }
+    ],
+    "sources": [
+     "https://ura.news/news/1053068544"
+    ]
+   },
+   {
+    "id": "telegram",
+    "name": "Telegram",
+    "category": "messenger",
+    "blocker": "mixed: TSPU traffic-signature/SNI filtering. On 2026-02-10 RKN announced stronger restrictions (media slowdowns had started in mid-January 2026). On 2026-04-10, 100% of requests to Telegram domains failed (Xakep). OONI, Oct-Nov 2026: 86.8% anomalies for the app, 78.5% for telegram.org. A weak vendor test on 2026-11-15 found that connections to telegram.org on Rostelecom/MTS never complete. Telegram was NOT removed from NSDI. Whether it is also IP-blocked is unconfirmed.",
+    "what_users_see_ru": "Сообщения не отправляются, «Соединение…» висит, фото и видео не грузятся, звонки не проходят.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Обычная стратегия обхода для Telegram ненадёжна. Для Telegram Desktop лучше работает локальный прокси (tg-ws-proxy), для веб-версии — обновление файла hosts. Звонки через прокси не работают. Если ничего не помогло, нужен VPN.",
+    "domains": [
+     "telegram.org",
+     "t.me",
+     "telegram.me",
+     "telesco.pe",
+     "cdn-telegram.org",
+     "telegra.ph",
+     "tdesktop.com",
+     "telegram.dog",
+     "telegram.space",
+     "telega.one",
+     "comments.app",
+     "contest.com",
+     "fragment.com",
+     "graph.org",
+     "quiz.directory",
+     "tg.dev",
+     "tx.me"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "telegram.org",
+      "path": "/",
+      "min_bytes": 16384,
+      "geo_block_signature": "Baseline about 20 KB. A TCP/TLS handshake that never completes = network block. Telegram does not geo-block."
+     },
+     {
+      "host": "web.telegram.org",
+      "path": "/",
+      "min_bytes": 1024,
+      "geo_block_signature": "Baseline about 1.6 KB."
+     },
+     {
+      "host": "t.me",
+      "path": "/telegram",
+      "min_bytes": 8192,
+      "geo_block_signature": "Baseline about 11 KB."
+     },
+     {
+      "host": "149.154.167.220",
+      "path": "(raw TCP connect to :443, no HTTP)",
+      "min_bytes": 0,
+      "geo_block_signature": "Telegram DC IP from the tg-ws-proxy docs. If TCP connect times out here while telegram.org TLS also fails, suspect an IP-level block. Official ranges: 91.108.4.0/22, 91.108.8.0/22, 91.108.12.0/22, 91.108.16.0/22, 91.108.20.0/22, 91.108.56.0/22, 149.154.160.0/20, 91.105.192.0/23, 185.76.151.0/24, plus the IPv6 ranges 2001:b28:f23d::/48, 2001:b28:f23f::/48, 2001:67c:4e8::/48, 2001:b28:f23c::/48, 2a0a:f280::/32. An HTTPS check cannot prove that MTProto works."
+     }
+    ],
+    "sources": [
+     "https://xakep.ru/2026/05/04/telegram-chronicle/",
+     "https://en.zona.media/article/2026/04/07/russian_internet_censorship_2026",
+     "https://vpnalert.com/tools/censorship-monitor/russia/telegram/",
+     "https://core.telegram.org/resources/cidr.txt",
+     "https://github.com/Flowseal/tg-ws-proxy",
+     "https://github.com/Flowseal/zapret-discord-youtube",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/telegram.lst"
+    ]
+   },
+   {
+    "id": "whatsapp",
+    "name": "WhatsApp",
+    "category": "messenger",
+    "blocker": "mixed: calls blocked since Aug 2025, nationwide throttling by late Nov 2025, the WhatsApp domain removed from NSDI in Feb 2026, and on 2026-02-12 WhatsApp said Russia had moved to a full block. OONI, last 30 days: 81.5% anomalies for the app. Only the DNS layer has a confirmed fix (foreign or secure DNS).",
+    "what_users_see_ru": "Сообщения уходят с задержкой или не уходят, звонки не соединяются, веб-версия не открывается.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Сначала включите защищённый DNS. Помогает ли обход DPI после полной блокировки в феврале 2026 года, не подтверждено. Программа проверит. Если не помогло, нужен VPN.",
+    "domains": [
+     "whatsapp.com",
+     "whatsapp.net",
+     "whatsapp.biz",
+     "wa.me"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "web.whatsapp.com",
+      "path": "/",
+      "min_bytes": 16384,
+      "geo_block_signature": "Baseline about 40 KB. NXDOMAIN on the system DNS but real IPs via DoH = NSDI block."
+     },
+     {
+      "host": "www.whatsapp.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Any valid HTTP response = TLS path open."
+     },
+     {
+      "host": "static.whatsapp.net",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "A 404 of about 9 B is the normal baseline = reachable."
+     }
+    ],
+    "sources": [
+     "https://ru.themoscowtimes.com/2026/02/12/whatsapp-poobeschal-prinyat-meri-dlya-sohraneniya-dostupa-kmessendzheru-vrossii-posle-blokirovki-a187041",
+     "https://en.zona.media/article/2026/04/07/russian_internet_censorship_2026",
+     "https://kyivindependent.com/russia-blocks-whatsapp-amid-broader-crackdown-on-social-media/",
+     "https://novayagazeta.eu/articles/2026/02/11/ne-prosto-blokiruiut-a-slovno-stiraiut",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/meta.lst"
+    ]
+   },
+   {
+    "id": "messenger-calls",
+    "name": "Звонки в Telegram и WhatsApp",
+    "category": "messenger",
+    "blocker": "rkn_protocol: STUN (P2P call setup) is detected and blocked, announced 2025-08-13. A winws STUN desync profile (filter-l7=stun, fake) worked for one user in 2025. No 2026 efficacy data. Telegram calls do not work through MTProto or SOCKS proxies.",
+    "what_users_see_ru": "Звонок не соединяется или сразу обрывается, хотя сообщения иногда ходят.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Можно включить экспериментальный профиль для звонков, но гарантий нет, а проверить звонок автоматически программа не может. Позвоните сами после включения. Если не работает, нужен VPN.",
+    "domains": [],
+    "domains_already_in_flowseal": [],
+    "test_targets": [],
+    "sources": [
+     "https://meduza.io/cards/v-rossii-perestayut-rabotat-zvonki-v-votsape-i-telegrame-chto-delat-chtoby-ostavatsya-na-svyazi-v-etih-messendzherah",
+     "https://habr.com/en/articles/990130",
+     "https://amnezia.org/en/blog/telegram-restricted-in-russia-2026"
+    ]
+   },
+   {
+    "id": "discord",
+    "name": "Discord",
+    "category": "messenger",
+    "blocker": "rkn_registry since 2024-10-08 (still blocked as of Oct 2026; OONI shows 55.8% anomalies for discord.com in Oct-Nov 2026). Exact mechanism unconfirmed, but the main Flowseal strategies target it: TCP/QUIC 443, plus voice UDP 19294-19344 and 50000-50100 with filter-l7=discord,stun. Episodic ISP-specific outages, e.g. Rostelecom/Beeline in Feb 2026.",
+    "what_users_see_ru": "Discord не загружается, висит на «Подключение…», голосовой канал бесконечно подключается или пинг 5000 мс.",
+    "dpi_fixable": "yes",
+    "advice_ru": "Обычно помогает подбор стратегии. Голос проверяется отдельно: если голосовой канал не подключается, обновите файл hosts и включите защищённый DNS. Сбои бывают временными и зависят от провайдера, поэтому повторите проверку позже.",
+    "domains": [
+     "discord.com",
+     "discord.gg",
+     "discord.media",
+     "discordapp.com",
+     "discordapp.net",
+     "discordcdn.com",
+     "discord.gift",
+     "discord.gifts",
+     "discord.dev",
+     "discord.app",
+     "discord.co",
+     "discord.design",
+     "discord.new",
+     "discord.store",
+     "discord.tools",
+     "discordstatus.com",
+     "discordsays.com",
+     "discordsez.com",
+     "discord-activities.com",
+     "discordactivities.com",
+     "discordmerch.com",
+     "dis.gd",
+     "discord-attachments-uploads-prd.storage.googleapis.com"
+    ],
+    "domains_already_in_flowseal": [
+     "discord.com",
+     "discord.gg",
+     "discord.media",
+     "discordapp.com",
+     "discordapp.net",
+     "discordcdn.com",
+     "discord.gift",
+     "discord.dev",
+     "discord.app",
+     "discordstatus.com",
+     "discordsays.com",
+     "discord-activities.com",
+     "discordactivities.com",
+     "dis.gd",
+     "discord-attachments-uploads-prd.storage.googleapis.com"
+    ],
+    "test_targets": [
+     {
+      "host": "discord.com",
+      "path": "/api/v10/gateway",
+      "min_bytes": 20,
+      "geo_block_signature": "Tiny JSON (35 B) = API path open. Discord does not geo-block Russia."
+     },
+     {
+      "host": "discord.com",
+      "path": "/",
+      "min_bytes": 65536,
+      "geo_block_signature": "Baseline about 160 KB. A stall after about 16-25 KB = Cloudflare-style throttling."
+     },
+     {
+      "host": "cdn.discordapp.com",
+      "path": "/embed/avatars/0.png",
+      "min_bytes": 1000,
+      "geo_block_signature": "1,268 B PNG = CDN path open."
+     },
+     {
+      "host": "gateway.discord.gg",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "WebSocket host. A 404 to a GET is normal = reachable."
+     }
+    ],
+    "sources": [
+     "https://www.dw.com/en/discord-why-the-messaging-app-is-under-scrutiny/a-70454889",
+     "https://habr.com/ru/post/973476/",
+     "https://dtf.ru/5335446-discord-vse-discord-v-rossii",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-general.txt",
+     "https://github.com/Flowseal/zapret-discord-youtube",
+     "https://habr.com/en/articles/1002160",
+     "https://github.com/Flowseal/zapret-discord-youtube/issues/10162",
+     "https://github.com/Flowseal/zapret-discord-youtube/issues/12487"
+    ]
+   },
+   {
+    "id": "signal",
+    "name": "Signal",
+    "category": "messenger",
+    "blocker": "rkn_registry since 2024-08-09; mechanism unknown. OONI: 86% anomalies for the app test, but only 16.6% for the signal.org website.",
+    "what_users_see_ru": "Приложение не подключается, сообщения не уходят.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Signal ограничен с августа 2024 года, способ блокировки неизвестен. Проверить приложение через сайт нельзя: сайт обычно открывается. Если приложение не работает, нужен VPN или встроенный в Signal прокси.",
+    "domains": [
+     "signal.org"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "signal.org",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "The website is usually reachable even when the app is blocked. Do NOT treat success here as 'Signal works'."
+     }
+    ],
+    "sources": [
+     "https://habr.com/ru/post/973476/",
+     "https://api.ooni.io/api/v1/aggregation?probe_cc=RU&test_name=signal&since=2026-10-16&until=2026-11-16"
+    ]
+   },
+   {
+    "id": "viber",
+    "name": "Viber",
+    "category": "messenger",
+    "blocker": "rkn_registry since Dec 2024; mechanism unknown. OONI shows 73.4% anomalies for www.viber.com.",
+    "what_users_see_ru": "Приложение не подключается или работает с перебоями.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Viber заблокирован с декабря 2024 года, способ неизвестен. Программа проверит. Если не помогло, нужен VPN.",
+    "domains": [
+     "viber.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.viber.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Use the generic rules."
+     }
+    ],
+    "sources": [
+     "https://therecord.media/russia-bans-viber-terrorism-trafficking",
+     "https://habr.com/ru/post/973476/"
+    ]
+   },
+   {
+    "id": "google-meet",
+    "name": "Google Meet",
+    "category": "messenger",
+    "blocker": "unknown: widespread disruptions since late Aug 2025, which RKN denies causing, and VPN fixed them for testers. OONI shows 69.9% anomalies for meet.google.com in Oct-Nov 2026.",
+    "what_users_see_ru": "Видеовстреча не подключается или постоянно обрывается.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Причина сбоев Meet неизвестна, официально его не блокируют. Программа проверит сайт, но качество звонка автоматически не проверить. Если встречи срываются, поможет VPN.",
+    "domains": [],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "meet.google.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Media runs over UDP and cannot be checked over HTTPS."
+     }
+    ],
+    "sources": [
+     "https://www.themoscowtimes.com/2025/09/05/russians-report-widespread-disruptions-on-google-meet-a90441",
+     "https://api.ooni.io/api/v1/aggregation?probe_cc=RU&test_name=web_connectivity&domain=meet.google.com&since=2026-10-16&until=2026-11-16"
+    ]
+   },
+   {
+    "id": "zoom",
+    "name": "Zoom",
+    "category": "messenger",
+    "blocker": "not_blocked: OONI shows 1.3% anomalies for zoom.us in Oct-Nov 2026, and it was reported working in Dec 2025. dpi_fixable is not applicable; UI should show 'обход не нужен'.",
+    "what_users_see_ru": "Обычно работает; если нет — это сбой, а не блокировка.",
+    "dpi_fixable": "yes",
+    "advice_ru": "Блокировки Zoom не обнаружено, обход не нужен.",
+    "domains": [
+     "zoom.us"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "zoom.us",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Control endpoint. Success is expected."
+     }
+    ],
+    "sources": [
+     "https://api.ooni.io/api/v1/aggregation?probe_cc=RU&test_name=web_connectivity&domain=zoom.us&since=2026-10-16&until=2026-11-16",
+     "https://istories.media/news/2025/12/04/rkn-blokiruet-whatsapp-i-facetime-kakie-yest-alternativi/"
+    ]
+   },
+   {
+    "id": "roblox",
+    "name": "Roblox",
+    "category": "games",
+    "blocker": "not_blocked since about 2026-06-10: Mintsifry confirmed access without VPN after an RKN block from 2025-12-03 to June 2026. Isolated ping and client complaints. dpi_fixable is not applicable.",
+    "what_users_see_ru": "С июня 2026 года должен работать; бывают жалобы на пинг и ошибки 277/279.",
+    "dpi_fixable": "yes",
+    "advice_ru": "Roblox разблокирован, обход не нужен. По сообщениям СМИ, Roblox банит аккаунты за подмену местоположения через VPN, поэтому не используйте VPN для Roblox. При ошибках 277/279 попробуйте режим «Игры».",
+    "domains": [
+     "roblox.com",
+     "rbxcdn.com",
+     "robloxdev.com",
+     "rbxinfra.net"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.roblox.com",
+      "path": "/",
+      "min_bytes": 65536,
+      "geo_block_signature": "Baseline about 110 KB. Control endpoint."
+     }
+    ],
+    "sources": [
+     "https://verstka.media/?p=52052",
+     "https://zona.media/news/2025/12/03/poiskovikpropagandy",
+     "https://appleinsider.ru/news/roblox-razblokirovali-v-rossii-igraem-bez-vpn-no-s-novymi-pravilami.html",
+     "https://github.com/Flowseal/zapret-discord-youtube/discussions/6800",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/roblox.lst"
+    ]
+   },
+   {
+    "id": "steam",
+    "name": "Steam",
+    "category": "games",
+    "blocker": "not_blocked: RKN told Kommersant on 2026-06-02 that it had imposed no restrictions. OONI anomalies rose about 5% from Feb 2026, and RKS Global hedges on the cause. Steam domains are in Flowseal list-exclude.",
+    "what_users_see_ru": "Обычно работает; иногда медленно грузится магазин или сообщество.",
+    "dpi_fixable": "yes",
+    "advice_ru": "Steam не заблокирован, обход не нужен. Flowseal специально исключает Steam из обхода. Если есть сбои, подождите: обычно это временные проблемы.",
+    "domains": [
+     "steampowered.com",
+     "steamcommunity.com",
+     "steamusercontent.com"
+    ],
+    "domains_already_in_flowseal": [
+     "steampowered.com, steamcommunity.com, steamusercontent.com are in list-exclude (deliberately NOT bypassed)"
+    ],
+    "test_targets": [
+     {
+      "host": "steamcommunity.com",
+      "path": "/",
+      "min_bytes": 16384,
+      "geo_block_signature": "Baseline about 46 KB. Control endpoint."
+     },
+     {
+      "host": "store.steampowered.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "200/206 baseline."
+     }
+    ],
+    "sources": [
+     "https://www.anti-malware.ru/news/2026-06-02-111332/50248",
+     "https://verstka.media/?p=51514",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-exclude.txt"
+    ]
+   },
+   {
+    "id": "faceit",
+    "name": "FACEIT",
+    "category": "games",
+    "blocker": "cloud_collateral: not in the RKN registry. On 2025-12-30 FACEIT said local ISPs were mass-blocking Cloudflare servers, and FACEIT sits behind Cloudflare. Status is known only as of Jan 2026.",
+    "what_users_see_ru": "Сайт или клиент FACEIT не подключается, матч не находится.",
+    "dpi_fixable": "partial",
+    "advice_ru": "FACEIT сам Россию не блокирует: проблема в ограничении серверов Cloudflare у провайдеров. Обход может помочь, но не всегда. Анти-чит может ругаться на драйвер обхода, поэтому включайте режим «Игры» осторожно.",
+    "domains": [],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.faceit.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "A 403 of about 5.4 KB (Cloudflare bot challenge) to non-browser clients is NORMAL = reachable, not a block. Only a reset/timeout or a body stall counts as a block."
+     }
+    ],
+    "sources": [
+     "https://esports.ru/igrovaya-industriya/news/mogli-li-rkn-zablokirovat-faceit-v-rossii/",
+     "https://blog.cloudflare.com/russian-internet-users-are-unable-to-access-the-open-internet/"
+    ]
+   },
+   {
+    "id": "epic",
+    "name": "Epic Games / Fortnite",
+    "category": "games",
+    "blocker": "unknown: OONI anomalies above 10% since Feb 2026, and Epic was fined 2 mln RUB under the personal-data law (KoAP 13.11). There is no block order. epicgames.com is in Flowseal list-exclude.",
+    "what_users_see_ru": "Магазин или лаунчер открывается медленно или с ошибками.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Официальной блокировки Epic Games нет. Сбои бывают, причина неизвестна. Обход может не понадобиться: сначала просто повторите попытку позже.",
+    "domains": [
+     "epicgames.com",
+     "epicgames.dev"
+    ],
+    "domains_already_in_flowseal": [
+     "epicgames.com, epicgames.dev are in list-exclude (deliberately NOT bypassed)"
+    ],
+    "test_targets": [
+     {
+      "host": "store.epicgames.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "A 403 from the Cloudflare bot check is NORMAL for non-browser clients = reachable."
+     }
+    ],
+    "sources": [
+     "https://verstka.media/?p=51514",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-exclude.txt"
+    ]
+   },
+   {
+    "id": "battlenet",
+    "name": "Battle.net / Blizzard",
+    "category": "games",
+    "blocker": "unknown: since July 2026 there are error 30008 failures in D4/WoW/Overwatch, sometimes with Battle.net itself down. It is unclear whether the cause is the regulator or Blizzard. Blizzard no longer sells in Russia.",
+    "what_users_see_ru": "Игры Blizzard не подключаются к серверам (ошибка 30008), иногда не открывается сам Battle.net.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Причина не установлена: это может быть как блокировка, так и ограничение со стороны Blizzard. Программа проверит доступ к сайту. Игровые серверы этой проверкой не охватываются.",
+    "domains": [],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.blizzard.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "200 baseline. Game servers are not checked."
+     }
+    ],
+    "sources": [
+     "https://ixbt.games/news/2026/07/15/rossiiane-lisilis-dostupa-k-battlenet-diablo-iv-i-drugim-igram-blizzard.html",
+     "https://verstka.media/?p=51514"
+    ]
+   },
+   {
+    "id": "chatgpt",
+    "name": "ChatGPT / OpenAI",
+    "category": "ai",
+    "blocker": "provider_geo: Russia is absent from OpenAI's supported-countries list, and OpenAI returns 403 to Russian IPs and bans accounts. Separately, on 2026-09-06/07 chatgpt.com was SNI-reset in the TLS handshake for about 15 h on several Russian networks while other names on the same IP worked.",
+    "what_users_see_ru": "«Сервис недоступен в вашей стране» или страница вообще не открывается.",
+    "dpi_fixable": "no",
+    "advice_ru": "OpenAI сам не обслуживает Россию, поэтому программа обхода блокировок не поможет. Нужен зарубежный IP-адрес (VPN), при этом аккаунт могут заблокировать. Если сайт не открывается совсем, это может быть временная сетевая блокировка: повторите проверку позже.",
+    "domains": [
+     "chatgpt.com",
+     "openai.com",
+     "auth.openai.com",
+     "api.chatgpt.com",
+     "oaistatic.com",
+     "oaiusercontent.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "chatgpt.com",
+      "path": "/cdn-cgi/trace",
+      "min_bytes": 100,
+      "geo_block_signature": "Plain text of about 250 B. The line 'loc=RU' means the service sees a Russian IP, so expect a provider geo-block. A TLS reset here while auth.openai.com works = SNI filtering (as in the Sep 2026 episode)."
+     },
+     {
+      "host": "api.openai.com",
+      "path": "/v1/models",
+      "min_bytes": 0,
+      "geo_block_signature": "401 without a key = reachable. 403 with 'Country, region, or territory not supported' = provider geo-block."
+     },
+     {
+      "host": "auth.openai.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Second SNI on the same infrastructure, for the SNI comparison."
+     }
+    ],
+    "sources": [
+     "https://developers.openai.com/api/docs/supported-countries",
+     "https://developers.openai.com/api/docs/guides/error-codes",
+     "https://tproger.ru/news/chatgpt-v-rossii-ne-otkryvalsya-15-chasov-tls-rvalsya-po-imeni-saj",
+     "https://www.anti-malware.ru/news/2026-09-07-111332/51304",
+     "https://www.osnmedia.ru/obshhestvo/ria-novosti-rossiyan-prodolzhat-blokirovat-v-claude-chatgpt-i-gemini/"
+    ]
+   },
+   {
+    "id": "claude",
+    "name": "Claude (Anthropic)",
+    "category": "ai",
+    "blocker": "provider_geo: Russia is not on Anthropic's supported-regions list. Mass account bans in May 2026 and a new wave from early October 2026, including Persona ID checks. No RKN involvement.",
+    "what_users_see_ru": "Сайт пишет, что регион не поддерживается, или аккаунт заблокирован.",
+    "dpi_fixable": "no",
+    "advice_ru": "Anthropic сам не обслуживает Россию, обход блокировок не поможет. Аккаунты из России массово блокируют, даже после проверки документов.",
+    "domains": [
+     "claude.ai",
+     "claude.com",
+     "anthropic.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "claude.ai",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "The geo-refusal response format is not documented. A valid HTTP response = network open, so a failure is provider-side."
+     }
+    ],
+    "sources": [
+     "https://www.anthropic.com/legal/supported-regions",
+     "https://ru.themoscowtimes.com/2026/10/29/claude-nachal-zaprashivat-urossiyan-pasporta-iblokirovat-akkaunti-a210018",
+     "https://www.anti-malware.ru/news/2026-05-08-121598/49979"
+    ]
+   },
+   {
+    "id": "gemini",
+    "name": "Google Gemini",
+    "category": "ai",
+    "blocker": "provider_geo: Russia is absent from Google's Gemini availability list. An unconfirmed accidental unblock was reported on 2025-08-16.",
+    "what_users_see_ru": "Gemini пишет, что недоступен в вашей стране.",
+    "dpi_fixable": "no",
+    "advice_ru": "Google сам не открывает Gemini для России, обход блокировок не поможет. Нужен зарубежный IP-адрес.",
+    "domains": [
+     "gemini.google.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "gemini.google.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "The geo page format is not documented. A valid HTTP response = network open."
+     }
+    ],
+    "sources": [
+     "https://support.google.com/gemini/answer/13575153?hl=en",
+     "https://3dnews.ru/1127736"
+    ]
+   },
+   {
+    "id": "github",
+    "name": "GitHub",
+    "category": "dev",
+    "blocker": "unknown/intermittent: not in the registry, and RKN says it does not restrict GitHub. Outages in early May 2026 and on 2026-07-14 (web and git) were resolved within hours. Mechanism unestablished.",
+    "what_users_see_ru": "Иногда GitHub не открывается или не работает git clone/push, потом сам восстанавливается.",
+    "dpi_fixable": "partial",
+    "advice_ru": "GitHub официально не блокируют. Сбои бывают кратковременными: повторите проверку через некоторое время.",
+    "domains": [
+     "github.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "github.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Use the generic rules."
+     },
+     {
+      "host": "api.github.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "JSON response = reachable."
+     }
+    ],
+    "sources": [
+     "https://news.ru/society/v-rossii-zablokirovali-github-rabotaet-ili-net-otvet-roskomnadzora",
+     "https://istories.media/news/2026/06/02/za-poslednii-mesyats-srazu-dva-vazhnikh-it-servisa-stali-khuzhe-rabotat-v-rkn-blokirovki-otritsayut/"
+    ]
+   },
+   {
+    "id": "pypi",
+    "name": "PyPI (Python)",
+    "category": "dev",
+    "blocker": "unknown/transient: from 2026-05-31 to early June 2026, pypi.org TLS connections were reset on TSPU networks, a pattern 'characteristic of DPI' but not proof. RKN denied it, and access recovered.",
+    "what_users_see_ru": "pip install падает с ошибкой соединения.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Такие сбои уже были и проходили сами. Программа проверит. Если соединение сбрасывается, может помочь обход.",
+    "domains": [
+     "pypi.org",
+     "files.pythonhosted.org"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "pypi.org",
+      "path": "/simple/",
+      "min_bytes": 65536,
+      "geo_block_signature": "A large index page; a stall or reset is a network issue. PyPI does not geo-block."
+     },
+     {
+      "host": "files.pythonhosted.org",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Untested in sources. Any HTTP response = reachable."
+     }
+    ],
+    "sources": [
+     "https://kod.ru/pypi-mogli-zablokirovat-v-rossii",
+     "https://istories.media/news/2026/06/02/za-poslednii-mesyats-srazu-dva-vazhnikh-it-servisa-stali-khuzhe-rabotat-v-rkn-blokirovki-otritsayut/",
+     "https://www.anti-malware.ru/news/2026-06-02-121598/50236"
+    ]
+   },
+   {
+    "id": "dockerhub",
+    "name": "Docker Hub",
+    "category": "dev",
+    "blocker": "provider_geo since 2024-05-30: HTTP 403 for Russian IPs citing export controls. No 2026 measurement confirms it continues.",
+    "what_users_see_ru": "docker pull выдаёт 403 Forbidden.",
+    "dpi_fixable": "no",
+    "advice_ru": "Docker Hub сам отказывает российским адресам, обход блокировок не поможет. Используйте зеркало реестра или зарубежный IP.",
+    "domains": [
+     "hub.docker.com",
+     "registry-1.docker.io"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "registry-1.docker.io",
+      "path": "/v2/",
+      "min_bytes": 0,
+      "geo_block_signature": "401 = NORMAL (reachable, auth required). 403 = provider geo-block."
+     }
+    ],
+    "sources": [
+     "https://therecord.media/docker-hub-suspends-services-russia",
+     "https://ru.themoscowtimes.com/2026/09/14/rossiiskih-razrabotchikov-vigonyayut-iz-zarubezhnih-hranilisch-dannih-a206058"
+    ]
+   },
+   {
+    "id": "notion",
+    "name": "Notion",
+    "category": "dev",
+    "blocker": "provider_account: from 2024-09-09 Notion blocked accounts registered in Russia, citing US sanctions. Only 2024 sources.",
+    "what_users_see_ru": "Сайт открывается, но аккаунт заблокирован или не даёт войти.",
+    "dpi_fixable": "no",
+    "advice_ru": "Notion сам блокирует российские аккаунты, программа обхода тут не поможет.",
+    "domains": [
+     "notion.so",
+     "notion.com",
+     "notion.site"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.notion.so",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "The site is usually reachable. The block is at account level and cannot be detected by a probe."
+     }
+    ],
+    "sources": [
+     "https://zona.media/news/2024/08/26/notion"
+    ]
+   },
+   {
+    "id": "figma",
+    "name": "Figma",
+    "category": "dev",
+    "blocker": "unknown: on 2026-05-30 there were more than 2,200 complaints a day across 19 cities, with error 101 and VPN restoring access. No official cause and no resolution data.",
+    "what_users_see_ru": "Figma не загружается, ошибка 101.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Причина сбоев Figma неизвестна. Программа проверит. Если сайт не открывается и обход не помог, нужен VPN.",
+    "domains": [
+     "figma.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.figma.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Use the generic rules."
+     }
+    ],
+    "sources": [
+     "https://www.mentoday.ru/life/news/30-05-2026/v-rossii-zablokirovali-figma-polzovateli-jaluyutsya-na-problemy-s-dostupom-k-servisu/"
+    ]
+   },
+   {
+    "id": "independent-media",
+    "name": "Независимые СМИ (BBC, DW, Радио Свобода, Meduza и др.)",
+    "category": "web",
+    "blocker": "mixed: registry blocks. BBC, Current Time, DW, Radio Svoboda and The Moscow Times were also removed from NSDI by 2026-02-11. Network mechanism unverified.",
+    "what_users_see_ru": "Сайт не открывается или «адрес не найден».",
+    "dpi_fixable": "partial",
+    "advice_ru": "Включите защищённый DNS: часть этих сайтов удалена из российского DNS. Если не помогло, обход может сработать, но это не подтверждено, и тогда нужен VPN.",
+    "domains": [
+     "bbc.com",
+     "bbc.co.uk",
+     "dw.com",
+     "svoboda.org",
+     "currenttime.tv",
+     "themoscowtimes.com",
+     "meduza.io",
+     "novayagazeta.eu",
+     "theins.ru"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.bbc.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "NXDOMAIN via the system DNS but real IPs via DoH = NSDI block."
+     },
+     {
+      "host": "meduza.io",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Use the generic rules."
+     }
+    ],
+    "sources": [
+     "https://novayagazeta.eu/articles/2026/02/11/ne-prosto-blokiruiut-a-slovno-stiraiut",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Categories/news.lst"
+    ]
+   },
+   {
+    "id": "patreon",
+    "name": "Patreon",
+    "category": "web",
+    "blocker": "mixed: RKN block in 2022. patreon.com is also in the community geoblock list, so the service may refuse Russian IPs as well.",
+    "what_users_see_ru": "Сайт не открывается или не даёт оплатить подписку.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Patreon заблокирован в России с 2022 года и, возможно, сам ограничивает российские адреса. Программа проверит сеть. Оплата из России всё равно может не пройти.",
+    "domains": [
+     "patreon.com",
+     "patreonusercontent.com"
+    ],
+    "domains_already_in_flowseal": [],
+    "test_targets": [
+     {
+      "host": "www.patreon.com",
+      "path": "/",
+      "min_bytes": 0,
+      "geo_block_signature": "Baseline not measured. Valid TLS plus an HTTP 403 with the service's own body suggests a provider refusal."
+     }
+    ],
+    "sources": [
+     "https://ura.news/news/1053068544",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Categories/geoblock.lst"
+    ]
+   },
+   {
+    "id": "cloudflare-sites",
+    "name": "Зарубежные сайты на Cloudflare",
+    "category": "web",
+    "blocker": "rkn_throttle (by destination subnet, with SNI/IP exceptions): since 2025-06-09 Russian ISPs (Rostelecom, MegaFon, Vimpelcom, MTS, MGTS) cut flows to Cloudflare after about 16 KB, which is about 25 packets in both directions. Behaviour varies by ISP and is 'unpredictable'. No primary source shows that zapret or ipset fixes it. Separately, ECH with outer SNI cloudflare-ech.com has been blocked over TCP since 2024-11-05/06.",
+    "what_users_see_ru": "Сайт начинает грузиться и зависает: видна шапка или пустая страница, картинки и скрипты не догружаются.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Это ограничение провайдера на зарубежный хостинг, а не блокировка конкретного сайта. Стратегия иногда помогает, но не гарантированно. Отключите ECH в браузере. Если сайт всё равно зависает, нужен VPN.",
+    "domains": [
+     "cloudflare-ech.com",
+     "encryptedsni.com",
+     "cloudflareclient.com",
+     "cloudflarestream.com",
+     "cloudflareinsights.com",
+     "cloudflarestorage.com"
+    ],
+    "domains_already_in_flowseal": [
+     "cloudflare-ech.com",
+     "encryptedsni.com",
+     "cloudflareclient.com",
+     "cloudflarestream.com",
+     "cloudflareinsights.com",
+     "cloudflarestorage.com"
+    ],
+    "test_targets": [
+     {
+      "host": "speed.cloudflare.com",
+      "path": "/__down?bytes=65536",
+      "min_bytes": 65536,
+      "geo_block_signature": "Must return exactly 65,536 B. Headers arriving and then a stall after about 16-25 KB = throttling. NOTE: bytes=16384 cannot detect the cut."
+     },
+     {
+      "host": "www.cloudflare.com",
+      "path": "/",
+      "min_bytes": 262144,
+      "geo_block_signature": "Baseline about 1.3 MB."
+     },
+     {
+      "host": "cdnjs.cloudflare.com",
+      "path": "/ajax/libs/jquery/3.7.1/jquery.min.js",
+      "min_bytes": 80000,
+      "geo_block_signature": "87,533 B exact baseline."
+     }
+    ],
+    "sources": [
+     "https://blog.cloudflare.com/russian-internet-users-are-unable-to-access-the-open-internet/",
+     "https://therecord.media/cloudflare-russia-restricting-access-crackdown",
+     "https://github.com/hyperion-cs/dpi-checkers/tree/main/ru/dpi-ch/docs",
+     "https://github.com/hyperion-cs/dpi-checkers/issues/18",
+     "https://github.com/net4people/bbs/issues/417",
+     "https://meduza.io/news/2024/11/07/roskomnadzor-rekomendoval-vladeltsam-saytov-otkazatsya-ot-ispolzovaniya-servisa-cloudflare-iz-za-tehnologii-esn-ona-pomogaet-obhodit-blokirovki",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-general.txt"
+    ]
+   },
+   {
+    "id": "foreign-hosting",
+    "name": "Сайты на зарубежном хостинге (Hetzner, DigitalOcean, OVH, AWS, Akamai)",
+    "category": "web",
+    "blocker": "rkn_throttle: the same 16-20 KB (about 25-packet) limit has been reported for Hetzner and DigitalOcean since June 2025, and the hyperion checker includes AWS, Akamai, Fastly and others. OVH had a separate UDP-triggered HTTPS block from late May 2025, and some OVH subnets appear whitelisted (Feb 2026).",
+    "what_users_see_ru": "Небольшие сайты и сервисы на зарубежных серверах грузятся наполовину и зависают.",
+    "dpi_fixable": "partial",
+    "advice_ru": "Это ограничение провайдера на зарубежный хостинг. Обход помогает не всегда, проверяйте на своей сети. Если не помогло, нужен VPN.",
+    "domains": [
+     "hetzner.com",
+     "digitalocean.com"
+    ],
+    "domains_already_in_flowseal": [
+     "cloudfront.net (AWS CloudFront) is in list-general"
+    ],
+    "test_targets": [
+     {
+      "host": "fsn1-speed.hetzner.com",
+      "path": "/100MB.bin (send header Range: bytes=0-65535)",
+      "min_bytes": 65536,
+      "geo_block_signature": "Expect 206 with 65,536 B; an explicit Range header is required. A stall after about 16-25 KB = throttling. Mirrors: nbg1-speed.hetzner.com, hel1-speed.hetzner.com."
+     }
+    ],
+    "sources": [
+     "https://heise.de/-10465087",
+     "https://en.zona.media/article/2025/06/19/cloudflare",
+     "https://github.com/hyperion-cs/dpi-checkers/issues/18",
+     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/hetzner.lst"
+    ]
+   },
+   {
+    "id": "secure-dns",
+    "name": "Защищённый DNS (DoH/DoT)",
+    "category": "web",
+    "blocker": "partial interception: around 25-26 Aug 2026 users on Rostelecom, Dom.ru, Tattelecom and SkyNet reported 1.1.1.1/1.0.0.1:853 resetting after TCP connect, and dns.google/8.8.8.8:443 hanging after ClientHello. One source (mentoday 2026-08-31) says plain UDP DNS to 8.8.8.8/1.1.1.1 is redirected to NSDI (answers from 195.208.5.1). The mechanism is unconfirmed and varies by operator.",
+    "what_users_see_ru": "Включённый «безопасный DNS» в браузере перестаёт работать, сайты пишут «адрес не найден».",
+    "dpi_fixable": "partial",
+    "advice_ru": "Программа проверит несколько DNS-серверов и выберет рабочий. Если не работает ни один, часть сервисов останется недоступной без VPN.",
+    "domains": [
+     "dns.google",
+     "cloudflare-dns.com",
+     "dns.quad9.net",
+     "dns.nextdns.io",
+     "doh.opendns.com",
+     "doh.cleanbrowsing.org",
+     "freedns.controld.com",
+     "wikimedia-dns.org"
+    ],
+    "domains_already_in_flowseal": [
+     "dns.google",
+     "cloudflare-dns.com",
+     "dns.quad9.net",
+     "dns.nextdns.io",
+     "doh.opendns.com",
+     "doh.cleanbrowsing.org",
+     "freedns.controld.com",
+     "wikimedia-dns.org (all with ^ exact-match prefix)"
+    ],
+    "test_targets": [
+     {
+      "host": "dns.google",
+      "path": "/resolve?name=youtube.com&type=A",
+      "min_bytes": 50,
+      "geo_block_signature": "JSON with an Answer array = DoH works. A hang or EOF after ClientHello = DoH blocked on this network."
+     },
+     {
+      "host": "cloudflare-dns.com",
+      "path": "/dns-query?name=youtube.com&type=A (header accept: application/dns-json)",
+      "min_bytes": 50,
+      "geo_block_signature": "200 JSON only when the accept header is sent; a 400 without it is NOT a block."
+     }
+    ],
+    "sources": [
+     "https://www.anti-malware.ru/news/2026-08-26-111332/51193",
+     "https://news.risky.biz/risky-bulletin-russia-starts-blocking-doh-and-dot/",
+     "https://www.mentoday.ru/technics/news/31-08-2026/populyarnyi-sposob-obhoda-blokirovok-perestal-rabotat-rkn-nachal-perehvatyvat-dns-google-i-cloudflare/",
+     "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/lists/list-general.txt"
+    ]
+   }
+  ],
+  "detection": [
+   {
+    "case": "no_internet",
+    "rule": "All Russian controls fail: TCP 443 connect to ya.ru, vk.com and www.gosuslugi.ru, plus system DNS resolution of ya.ru. Also check that Windows has a default gateway and an adapter that is up. Run this first; skip all further tests if it fails.",
+    "message_ru": "Нет подключения к интернету: не открываются даже российские сайты. Проверьте кабель, Wi-Fi или роутер. Программа обхода тут ни при чём."
+   },
+   {
+    "case": "mobile_whitelist_mode",
+    "rule": "Russian whitelisted endpoints (ya.ru, vk.com, www.gosuslugi.ru → HTTP 200) work, but ALL foreign controls on different ASNs time out or are refused at TCP connect, including by raw IP. Use several controls, e.g. a Hetzner IP, telegram.org, discord.com and a Google host; do NOT use example.com, which is now on Cloudflare. Also check whether the active adapter is WWAN/cellular or a phone hotspot. Retest after 5-10 min, since the mode varies by operator, region and SIM. Probes are read-only HTTPS/TCP connects; no spoofing or scanning.",
+    "message_ru": "Похоже, на вашей мобильной сети включён режим «белых списков»: работают только разрешённые российские сервисы. Никакая программа обхода тут не поможет. Подключитесь к домашнему Wi-Fi или проводному интернету."
+   },
+   {
+    "case": "dns_spoofing_or_nsdi",
+    "rule": "Resolve the target via the system resolver and via DoH (dns.google/resolve JSON, cloudflare-dns.com with accept: application/dns-json, at least one more). Classify as a DNS block if the system resolver gives NXDOMAIN, an empty answer, a private/bogon IP or an IP that differs from every DoH answer, while DoH returns real addresses. Optional: a plain UDP query to 8.8.8.8 answered from 195.208.5.1 = interception (single source). Run before any DPI test.",
+    "message_ru": "Ваш провайдер не выдаёт настоящий адрес этого сайта (подмена DNS). Включите защищённый DNS — программа может сделать это одной кнопкой."
+   },
+   {
+    "case": "secure_dns_blocked",
+    "rule": "Every configured DoH/DoT resolver hangs, resets after TCP connect or returns EOF after ClientHello. Try at least three providers from the Flowseal list and report which work.",
+    "message_ru": "На вашей сети заблокированы и защищённые DNS-серверы. Мы попробовали несколько: часть сервисов может остаться недоступной без VPN."
+   },
+   {
+    "case": "ip_block",
+    "rule": "DNS resolves to correct IPs, but TCP connect to the IP:443 times out or gets RST before any TLS byte is sent. Also fails when connecting with a neutral SNI or no SNI to the same IP, while foreign controls on other networks connect fine. For Telegram, also check TCP connect to 149.154.167.220:443.",
+    "message_ru": "Сайт заблокирован по IP-адресу: до сервера не доходит даже соединение. Обход DPI здесь не поможет, нужен VPN."
+   },
+   {
+    "case": "dpi_sni_block",
+    "rule": "TCP connect succeeds, but after sending a ClientHello with the target SNI the client gets RST, a timeout or no ServerHello. The same IP with another SNI (e.g. a sibling host on the same infrastructure, as COMSS did for chatgpt.com vs auth.openai.com) completes TLS. Confirm by re-running with winws enabled: success = DPI-fixable.",
+    "message_ru": "Блокировка по имени сайта (DPI). Программа обхода как раз для этого — подбираем стратегию."
+   },
+   {
+    "case": "throttling_16_20kb",
+    "rule": "TLS and HTTP headers succeed, but the body stalls (no bytes for at least 5-8 s) after about 15-25 KB, while small requests under 10 KB complete. Fetch at least 64 KB (speed.cloudflare.com/__down?bytes=65536, a Hetzner Range request, or a large page) and compare against Content-Length or the expected size. The limit is about 25 packets in both directions, so 16 KB probes cannot detect it. Test per hosting group, because SNI/IP exceptions exist.",
+    "message_ru": "Провайдер обрезает соединение с этим зарубежным хостингом: страница начинает грузиться и зависает. Обход помогает не всегда — попробуем стратегии; если не выйдет, нужен VPN."
+   },
+   {
+    "case": "video_throttling_youtube",
+    "rule": "youtube.com loads (TLS OK, page complete), but a sustained googlevideo transfer (redirector.googlevideo.com/report_mapping or a videoplayback chunk) is slow or stalls. Measure throughput for at least 30 s; low single-digit hundreds of kbps (a 128 kbps cap was reported in 2024) or a stall = throttling. Also check i.ytimg.com separately. Report 'page opens, video does not' as its own state.",
+    "message_ru": "YouTube открывается, но видеопоток тормозят. Пробуем стратегии; также отключите QUIC в браузере и блокировщик рекламы. Если видео всё равно зависает, на вашей сети сейчас надёжно поможет только VPN."
+   },
+   {
+    "case": "provider_geo_block",
+    "rule": "Valid TLS with the real certificate for the host, plus an HTTP 403/451 with the provider's own body, e.g. OpenAI's 403 'Country, region, or territory not supported', or Docker's 403 where the normal answer is 401. Cloudflare /cdn-cgi/trace with 'loc=RU' shows the service sees a Russian IP. EXCLUDE bot challenges: a 403 with a Cloudflare 'Just a moment' / cf-mitigated challenge (faceit.com, store.epicgames.com) = reachable, not geo.",
+    "message_ru": "Сеть в порядке — это сам сервис отказывается работать с пользователями из России. Программа обхода блокировок здесь не поможет; нужен зарубежный IP-адрес."
+   },
+   {
+    "case": "quic_blocked",
+    "rule": "A UDP 443 QUIC v1 handshake to the host fails while TCP 443 TLS to the same host succeeds. Probe QUIC once only: TSPU drops the 4-tuple for about 420 s after a hit, so repeated probes poison later tests.",
+    "message_ru": "Протокол QUIC (HTTP/3) к этому сайту заблокирован. Отключите QUIC в браузере — сайты будут работать через обычное соединение."
+   },
+   {
+    "case": "ech_blocked",
+    "rule": "A TLS ClientHello with an ECH extension and outer SNI cloudflare-ech.com is dropped over TCP, while the same Cloudflare host without ECH works.",
+    "message_ru": "В вашем браузере включено шифрование имени сайта (ECH), а провайдер его блокирует. Отключите ECH в настройках браузера."
+   },
+   {
+    "case": "isp_stub_page",
+    "rule": "An HTTP response arrives, but the certificate does not match the requested host, or there is a redirect to an ISP or registry warning page. (This rule is reasoning, not sourced; verify with real samples.)",
+    "message_ru": "Провайдер подменяет страницу заглушкой о блокировке. Обычно это блокировка по реестру — попробуем обход."
+   },
+   {
+    "case": "intermittent",
+    "rule": "Repeat every service test at least 3 times over several minutes; outcomes that differ between runs = unstable. Store a timestamp and the ISP name (ASN of the public IP) with every verdict. Statuses changed within hours to weeks in 2025-2026: ChatGPT reset for about 15 h, the GitHub outage on 14 Jul, PyPI in June, the Roblox block and unblock.",
+    "message_ru": "Доступ нестабильный: то работает, то нет. Это может быть временный сбой у провайдера или сервиса. Проверим ещё раз позже автоматически."
+   },
+   {
+    "case": "not_verifiable_by_probe",
+    "rule": "Discord voice (UDP 19294-19344/50000-50100), Telegram/WhatsApp calls (STUN), Telegram MTProto, game servers and account-level bans cannot be verified with HTTPS probes. Mark them 'не проверяется автоматически' instead of showing green.",
+    "message_ru": "Это нельзя проверить автоматически (голос, звонки, игровые серверы). Проверьте вручную после включения обхода."
+   },
+   {
+    "case": "conflict_invalidates_test",
+    "rule": "Before testing, detect another active WinDivert driver (driverquery | find \"Divert\"; a stale 'windivert' service), a running GoodbyeDPI/winws, an active VPN/TUN adapter or a system proxy. If found, results are unreliable: offer cleanup first.",
+    "message_ru": "На компьютере уже работает другая программа обхода или VPN — результаты проверки будут неверными. Отключить её?"
+   }
+  ],
+  "features": [
+   {
+    "feature": "One-button diagnosis screen: open the app, press 'Проверить', and get per-service cards (YouTube, Discord, Telegram, WhatsApp, ChatGPT, …) with a plain-Russian cause verdict: 'работает' / 'исправим обходом' / 'нужен защищённый DNS' / 'сервис сам не пускает Россию' / 'нужен VPN' / 'белые списки' / 'нет интернета' / 'не проверяется автоматически'. Modern card UI, one primary action per card.",
+    "priority": "P0",
+    "why": "This is the user's explicit request. Users cannot tell causes apart (Flowseal #18162, #10162). The closest competitor, m0xvi/zapret-gui v2.2.4, separates only DPI vs external vs strategy; no competitor checked separates geo-block, whitelist or IP block."
+   },
+   {
+    "feature": "Layered test engine per service: DNS (system vs several DoH) → TCP connect by IP → TLS with target SNI vs a neutral SNI on the same IP → HTTP status with known 'reachable' codes (401/403-challenge/404/400) → body of at least 64 KB → sustained throughput for video. Each layer maps to one detection rule.",
+    "priority": "P0",
+    "why": "Verified endpoint quirks: gateway.discord.gg 404, gql.twitch.tv 400, faceit/epic 403 challenge, Docker 401. A 16 KB probe cannot see the about-25-packet cut (hyperion-cs docs, Cloudflare blog). SNI comparison on the same IP is how the ChatGPT Sep 2026 incident was diagnosed (tproger/COMSS)."
+   },
+   {
+    "feature": "DNS check plus one-click Secure DNS with fallback across several resolvers (dns.google, Cloudflare, Quad9, CleanBrowsing, NextDNS…), testing each before applying.",
+    "priority": "P0",
+    "why": "NSDI removal in Feb 2026 hit YouTube, WhatsApp, Meta and media (NGE, Mediazona). Secure DNS is step 1 in the Flowseal README. DoH/DoT were reported blocked on several ISPs in Aug 2026 (Anti-Malware, Risky Bulletin), and CleanBrowsing helped one user when others failed (#251)."
+   },
+   {
+    "feature": "Mobile-whitelist and no-internet detection with an honest 'обход не поможет, подключитесь к Wi-Fi/проводу' message.",
+    "priority": "P0",
+    "why": "Whitelist mode has existed since Aug/Sep 2025. More than 60% of mobile sessions were restricted in H1 2026, and about 88% were on whitelists in Belgorod/Bryansk/Kursk on 2026-07-31 (CNews/Kommersant/Vigo; Mediazona; Rozetked)."
+   },
+   {
+    "feature": "Automatic strategy selection: test the Flowseal strategies against the per-service targets, apply the best, and install it as a Windows service rather than a console window.",
+    "priority": "P0",
+    "why": "The README flow (service.bat → Run Tests → pick → Install Service) is console-driven. In #251 (Jul 2026) the bypass stopped when the terminal was closed."
+   },
+   {
+    "feature": "Conflict detector with one-click cleanup: other WinDivert drivers or a stale windivert service, GoodbyeDPI, VPN/TUN, Amnezia leftovers, system proxy.",
+    "priority": "P0",
+    "why": "Issue #522: these are the top causes of 'nothing launches' or 'RUNNING but sites dead'."
+   },
+   {
+    "feature": "YouTube-specific diagnostics: separate 'page opens / thumbnails / video stream' states, a sustained-playback test of at least 30 s, and guided fixes (disable QUIC/Kyber in the browser, Firefox http3 flags, disable ad blockers, try adding googlevideo.com to the UDP 443 rule).",
+    "priority": "P1",
+    "why": "Stalls after 10-30 min (#16448, Aug 2026), a black screen around 30 s on all strategies (#251, Oct 2026) and failures on older videos (Nov 2026). The FAQ lists QUIC/Kyber and ad blockers; disabling QUIC helped in Oct-Nov 2026."
+   },
+   {
+    "feature": "Background watchdog: re-test periodically and on network change, auto-switch the strategy after repeated failures, and show the last-checked time and ISP on every verdict.",
+    "priority": "P1",
+    "why": "Results change hour to hour and by ISP (#251 Nov 2026, issue #18 'unpredictable', Rostelecom vs MTS vs Beeline). Roblox was blocked and then unblocked within 6 months. m0xvi already ships a watchdog, so this is table stakes, not a differentiator."
+   },
+   {
+    "feature": "Telegram helper: explain that a strategy alone is unreliable, and offer optional tg-ws-proxy for Desktop and a hosts update for Web, with plain explanations.",
+    "priority": "P1",
+    "why": "The Flowseal README points Telegram users to tg-ws-proxy. Telegram had 86.8% OONI app anomalies in Oct-Nov 2026. A user in #17411 did not understand the optional TG proxy/WARP components."
+   },
+   {
+    "feature": "Discord voice helper: a separate voice status ('проверьте вручную'), a hosts-file update for *.discord.media, and UDP rule checks.",
+    "priority": "P1",
+    "why": "Voice fails independently of the web UI (Habr 1002160). #12487 '5к пинг' has 280 comments. The README says the hosts update fixes voice."
+   },
+   {
+    "feature": "Games mode toggle (Game Filter TCP/UDP 1024-65535, with UDP-only and custom options) with an anti-cheat warning and an automatic strategy restart. Show 'ipset any' only as a temporary test mode.",
+    "priority": "P1",
+    "why": "Game Filter is off by default and needs a restart (service.bat, #6800). Game issues dominate the top Flowseal threads (LoL #2354, Roblox #6795). The README warns that ipset any breaks many sites and that anti-cheats flag WinDivert."
+   },
+   {
+    "feature": "Safe updates for strategies, lists and the engine: SHA-256 verification, backup and rollback, no update while winws is running, and a pinned mirror fallback.",
+    "priority": "P1",
+    "why": "Flowseal shipped releases about monthly (1.10.0 on 22 Jul to 1.10.4 on 20 Oct 2026). 1.10.3 fixed GitHub downloads over IPv4/IPv6. There was a commit gap from 4 to 17 Jul 2026, and the suspension is unverified. EliteSpirit PR #3 shows the 'no update while winws runs' pattern."
+   },
+   {
+    "feature": "Proper installer to an ASCII path (e.g. under ProgramData), plus pre-flight checks for admin rights, Secure Boot driver blocks, ARM64 (no signed WinDivert), 32-bit and Win7.",
+    "priority": "P1",
+    "why": "The README requires a path without Cyrillic, special characters or spaces. zapret windows.md documents the Secure Boot, ARM64, 32-bit and Win7 limits."
+   },
+   {
+    "feature": "Shareable diagnosis report: a copyable plain-text summary with ISP, region, timestamp, per-layer results and strategy used, for asking help on forums.",
+    "priority": "P2",
+    "why": "Users in #251, #18162 and #10162 trade ISP-specific results by hand, and the #16448 FAQ has ISP-specific entries."
+   },
+   {
+    "feature": "'Сбросить всё' and a clean uninstall: remove the service, WinDivert driver, hosts edits and DNS changes, and restore the previous settings.",
+    "priority": "P2",
+    "why": "Leftover windivert services break other tools (README, #522). The UnblockPro author stresses crash-safe cleanup (Habr 994412)."
+   },
+   {
+    "feature": "Trust pack: published SHA-256 and VirusTotal link, code signing if feasible, a plain explanation of why admin rights and a driver are needed, and step-by-step AV exclusion guidance (Defender, Kaspersky 'legitimate apps').",
+    "priority": "P2",
+    "why": "WinDivert is flagged as RiskTool. The ZAPRET UI GUI hit a Defender ML 'Bearfoos' detection and 1/70 on VirusTotal, and its users feared a trojan (#17411). The README warns about fakes and malware found through Yandex search."
+   },
+   {
+    "feature": "Experimental calls profile (STUN magic-cookie filter, fake desync) clearly labelled 'экспериментально, проверьте звонком'.",
+    "priority": "P2",
+    "why": "Call blocking via STUN has been confirmed since Aug 2025 (Meduza), but the fix rests on a 2025 forum anecdote and a weak vendor article, with no 2026 data."
+   }
+  ],
+  "risks": [
+   "Antivirus: WinDivert is detected as Not-a-virus:RiskTool.Multi.WinDivert and may be quarantined. GUI wrappers have triggered Defender ML detections (Trojan:Win32/Bearfoos.A!ml) and 1/70 VirusTotal hits. The app must explain this and guide exclusions, without ever silently disabling AV. Sources: Flowseal README; https://github.com/Flowseal/zapret-discord-youtube/discussions/17411",
+   "Anti-cheat: some anti-cheats flag WinDivert, so warn before Games mode. Roblox reportedly bans accounts for location masking via VPN (AppleInsider.ru 2026-06-10). Claude bans Russian accounts even after ID checks. Never recommend VPN for those accounts without the ban warning.",
+   "Conflicts: GoodbyeDPI, other zapret builds, VPN/TUN clients, leftover Amnezia files and stale windivert services break winws or invalidate test results (issue #522). Running EzPzDPI's zapret and GoodbyeDPI engines at the same time must be prevented.",
+   "Collateral breakage: 'ipset any' breaks many sites, and Game Filter can break things that worked before (README, release 1.10.1). Expose both only as temporary or advanced, with automatic rollback.",
+   "QUIC probing: TSPU penalises a blocked QUIC 4-tuple for about 420 s (FOCI 2026), so aggressive repeated QUIC tests can make the user's own connection worse for minutes.",
+   "False verdicts: Cloudflare bot challenges (faceit.com, store.epicgames.com 403), WebSocket hosts (gateway.discord.gg 404), gql.twitch.tv 400 and Docker 401 look like failures but are reachable. 16 KB probes miss the about-25-packet cut. A green check must never claim 'Discord voice works' or 'Telegram app works' from an HTTPS probe (UnblockPro v2.0 postmortem, Habr 1002160).",
+   "Over-promising: as of Nov 2026 no strategy is a universal YouTube fix (#251, #18162). Results vary by ISP and over time, and the contested Forbes report (18 Mar 2026) describes TSPU sometimes running in bypass mode. Always word verdicts as 'на вашей сети сейчас'.",
+   "Upstream supply chain: Flowseal is the strategy source. The repo is active (1.10.4 on 2026-10-20, last push 2026-11-04), but a July 2026 commit gap fits an outage. Pin versions, verify hashes, keep a fallback mirror, and do not cite the suspension as fact.",
+   "Regulatory pressure on the tool itself (verified context): by end of Feb 2026, 469 VPN services were blocked (re-russia). Marketplaces must restrict VPN users from Apr 2026. RKN demanded a record 233 bypass apps be removed from Google Play in Mar 2026 (iStories 2026-04-08). In Mar 2026 courts fined ISPs for letting users reach YouTube by bypassing TSPU (Mediazona 2026-04-07); these are fines on ISPs, not users. Expect distribution takedowns, and pushback on GitHub mirrors and app stores.",
+   "Legal note for users (NOT verified in this research; must be sourced before showing in the UI): none of the 7 research angles produced a verified 2025-2026 source on penalties for individual users of bypass tools, or on penalties for distributing or advertising them. From recollection, Russian laws from mid-2025 introduced fines for knowingly searching for 'extremist materials' (with VPN use as an aggravating circumstance) and banned advertising of VPN/bypass tools from Sep 2025. Treat both as unverified until checked against primary legal texts (pravo.gov.ru / Garant / Consultant) and reputable reporting. Until then the app should show only a neutral note: 'Использование средств обхода блокировок в России регулируется законом; программа не предназначена для доступа к запрещённым материалам. Разработчики не дают юридических консультаций.'",
+   "Privacy: diagnostics reveal the user's ISP and blocked-service usage. Keep all results local, send no telemetry by default, and require an explicit opt-in for any shared report."
+  ],
+  "gaps": [
+   "No measurements from Russian IPs: all endpoint baselines were taken from a US IP. Real RU behaviour (RST vs timeout vs stall, stub pages, cert mismatches) must be collected from beta testers on Rostelecom, MTS, Beeline, MegaFon, Dom.ru and regional ISPs.",
+   "Whether zapret/winws strategies fix the 16-20 KB (about 25-packet) foreign-hosting throttling has no primary source. Needs per-host empirical testing.",
+   "Meta (Instagram/Facebook), X, LinkedIn, SoundCloud, Signal, Viber, TikTok and independent media: the 2026 network-level blocking mechanism (IP vs SNI vs signature) is unverified, so dpi_fixable stays 'partial = test it'.",
+   "Telegram: the exact 2026 mechanism (SNI vs IP vs MTProto signature) and whether winws alone helps on any ISP are unknown.",
+   "WhatsApp after the Feb 2026 full block: whether anything beyond Secure DNS (TCP/IP blocking, the STUN profile) helps is unknown. The Android MAU figures are unverified.",
+   "Call profiles (STUN desync) have no 2026 efficacy data.",
+   "Twitch: current status unknown. The June 2026 black-screen AWS-IP explanation is third-hand, and the SEO page with auto-generated dates was rejected.",
+   "Reddit, Pinterest, Medium, Rutracker, Wikipedia: no usable 2025-2026 source (gogov.ru unreachable). Live test only, so they are not in the catalog with a status.",
+   "Games with no usable source: Riot (Valorant/LoL), Genshin/HoYoverse, Brawl Stars/Supercell, Xbox Live/Minecraft login, PlayStation Network (only 2025 foreign-region account bans), Ubisoft. Steam/FACEIT/Battle.net statuses are only confirmed up to mid-2026.",
+   "Copilot, Canva, GitLab, npm: verification failed (vendor blog only, dead URL, unrelated citation). Docker Hub and Notion rest on 2024 sources only.",
+   "Geo-block response formats for Claude, Gemini, Spotify and Patreon are not documented. Only OpenAI's 403 message and Docker's 401-vs-403 split are known.",
+   "Cloudflare WARP 2026 status is unknown: it was reported blocked in 2022, yet a Nov 2026 admin used it as an exit. Users also report a Russian WARP exit since late Oct 2026.",
+   "DNS interception of plain UDP to 8.8.8.8/1.1.1.1 (redirect to 195.208.5.1) has a single-source basis (mentoday 2026-08-31). Which DoH providers currently work on which ISPs is unknown.",
+   "Mobile whitelist: the 20 Feb 2026 law/FSB clause and the '120+ services' count are only partly sourced. A home-ISP whitelist (Rostov, Mar 2026) is unconfirmed, and St Petersburg 4 Jul 2026 is unverified. No published algorithm for safe whitelist detection exists; ours is a derived design.",
+   "Legal penalties for individual users and for distributing or advertising bypass tools in 2025-2026: not researched by any angle. Needs a dedicated legal-source pass before any legal text ships in the UI.",
+   "Flowseal repo July 2026 suspension: unverified (the source is a dead Obsidian note). Mirrors (Gitea, FluxRoute, UnblockPro) are unverified.",
+   "Domains removed as invalid or misattributed: discord.status (no such TLD), discordpartygames.com (NXDOMAIN), telegram-cdn.org (on hold), yting.com (typo-squat), steamstat.info (not Steam), usercontent.dev and ton.org (not confirmed Telegram). Upstream Flowseal/itdoginfo lists still contain some of them; harmless in hostlists but never use them as test targets."
+  ]
+ },
+ "verificationSummaries": [
+  {
+   "angle": "status-media",
+   "summary": "Model: Opus 5.5, single agent. Checked all 25 cited URLs on 2026-11-16. 20 were live at the first try and ura.news was live on retry (first try was a 504). Two are dead: both publish.obsidian.md pages return 404. Three cannot be read: gogov.ru returns a 429 bot CAPTCHA on every page. Every domain in the service entries is real: each appears in the live Flowseal or itdoginfo raw lists or resolves in DNS. None look invented.\n\nEndpoint bugs that would break the diagnostic: cloudflare-dns.com/dns-query returns 400 unless the request sends 'accept: application/dns-json'; gateway.discord.gg returns 404 and gql.twitch.tv returns 400 to a plain GET. Treat any TLS/HTTP response as 'reachable' for those.\n\nStrongest evidence (secondary-tier news and analysis, Feb-Sep 2026): Meduza, Novaya Gazeta Europe, ura.news, Moscow Times, re-russia and Snob back the NSDI/DNS removal, the list of 13 resources, the Meta/WhatsApp/Discord/LinkedIn/Patreon timeline and the whitelists.\n\nWeak or failed: the Twitch status comes only from an SEO page that inserts today's date into its headings daily. The Reddit, Pinterest, Medium and Rutracker claims depend on unreachable gogov.ru. The Flowseal July 2026 suspension relies on a dead Obsidian note; the GitHub API shows the repo active, with release 1.10.4 on 2026-10-20.\n\nDate fixes: the YouTube stall reports are from 2-4 Aug 2026, not 25-26 Jul. The Forbes TSPU-overload report is from 18 Mar 2026 and is disputed by experts. Snob's whitelist piece is dated 19 Mar 2026. The hosting-provider VPN ban was adopted, not just planned, per a vendor blog.\n\nNew and relevant for the YouTube diagnostic: Flowseal users in Nov 2026 report that older videos fail while popular ones load, which they blame on degraded YouTube caching servers inside Russia. They also say WARP has given a Russian exit since late October, and that disabling QUIC or adding googlevideo.com to the UDP 443 rule helped some of them.\n\nTotals: 23 pass, 22 partial, 5 fail; 0 left unverified. Text extracts of the sources are in <local scratch>"
+  },
+  {
+   "angle": "status-messengers",
+   "summary": "I checked 11 claims, 10 service entries and 7 UX findings: 15 pass, 13 partial, 0 fail. All 23 cited URLs were probed. Two did not load. (1) securitylab.ru/news/578976.php returns HTTP 401 behind a Qrator bot wall and has no Wayback snapshot, so the WhatsApp Android MAU figures (82M to 57.9M) are UNVERIFIED. (2) dtf.ru/howto/4814603-zoom-v-rossii-v-2026-godu returns 404. I replaced it with OONI API data: zoom.us has 1.3% anomalies in RU, which supports not_blocked. The other 21 URLs returned 200 and their text matched the claims, with these exceptions: TURN is not in the MT Google Meet article; 'some FaceTime calls work when routed outside Russia' is not in Al Jazeera; habr 990130 does NOT say the STUN fix 'does not work for everyone', and that article is a Habr AI translation of a VPN seller's (hynet.space) promo piece, so weak tier; Telegram 2026-02-10 was an announced new round of restrictions, not the start of throttling (media slowdown from mid-Jan 2026). Unsourced items to drop: Meet in the RKN registry, Skype shutdown, Teams working, the 'blockinrussia' Zoom check. DOMAIN FLAGS: 'discord.status' is invalid (no .status TLD in IANA, NXDOMAIN), so remove it. 'discordpartygames.com' is NXDOMAIN, harmless in a hostlist but useless as a test target. Both come from the upstream Flowseal/itdoginfo lists, not invented by the researcher. All other listed domains and test endpoints resolve via Cloudflare DoH. https://signal.org is a poor endpoint for testing the Signal app: OONI shows only 16.6% anomalies for the site vs 86.0% for the app test. The Telegram CIDR list matches the official cidr.txt exactly; the 5 IPv6 ranges are missing. Primary data I pulled myself, OONI aggregation API for RU, 2026-10-16..11-16: telegram app 86.8% anomalies, whatsapp 81.5%, signal 86.0%, telegram.org 78.5%, www.whatsapp.com 79.6%, discord.com 55.8%, www.viber.com 73.4%, www.snapchat.com 81.3%, meet.google.com 69.9%, zoom.us 1.3%. For 2026-04-10 raw OONI gives telegram 92.1% vs the cited 95%. OONI anomalies are not confirmed blocks. Source-tier caveats: vpnalert is a VPN-affiliate vendor (weak) but is the only source for the 2026-11-15 Rostelecom/MTS test; Amnezia is a biased VPN vendor; dtf Discord is a user blog; the Flowseal GitHub files are primary for tool behaviour. Unverified: 0 entries. Scratch files are in <local scratch>"
+  },
+  {
+   "angle": "status-games",
+   "summary": "I checked 34 items (16 claims, 11 services, 7 UX findings): 12 pass, 16 partial, 6 fail.\n\n**Passed:** Roblox block and unblock; FACEIT as Cloudflare collateral damage rather than an RKN block; Flowseal Game Filter and README facts; the Spotify precedent; Novaya Gazeta on TSPU; the Roblox service entry; 6 of the 7 UX findings.\n\n**Failed:** Riot/Ubisoft/Minecraft/Genshin; Brawl Stars/Supercell (status claim); the xbox, riot, genshin and supercell service entries. All have no usable source.\n\n**Main corrections:**\n- **Xbox:** the claim about DNS restrictions from Aug 2026 has no source behind it.\n- **PSN:** the 2025 bans hit foreign-region accounts (TR/UA/KZ) used by Russians.\n- **OONI:** RKS Global was hedged; the anomaly rise coincided with more OONI measurements in Russia.\n- **Shazoo:** RKN's 'no plans to block' was about EA and Take-Two, not Epic.\n- **Labels:** 'rkn_throttle' (faceit) and 'rkn_ip' (twitch, supercell) are not established.\n- **16 KB cutoff:** it applied to Cloudflare, Hetzner and DigitalOcean from June 2025. OVH was a different, UDP-triggered block. 2026 status is unverified.\n- **Unsupported details:** the 2024 Steam registry entry and the 2018 Blizzard IP block have no source.\n\n**Domains:**\n- **steamstat.info:** does not exist (NXDOMAIN) and is not a Steam domain. Remove it.\n- **Supercell apex domains** (clashroyaleapp, brawlstarsgame, squadbustersgame): real but have no A record; their game.* subdomains resolve.\n- **Test endpoints:** faceit.com and store.epicgames.com return 403 to non-browser clients, and xsts.auth.xboxlive.com returns 404 at the root. A plain HTTP check would wrongly report them as blocked.\n\n**Source access:**\n- **Verstka:** the direct pages hit a Cloudflare challenge (403); I read the text through its WordPress API instead.\n- **Archived copies:** ixbt.games (403, DDoS-Guard) and ntc.party (IPv6-only, unreachable from here) were checked via Wayback.\n- **Securitylab:** returns 401 behind anti-bot protection and has no archive, so I could not check it.\n- **New source:** Verstka 52052 is a better source for the Roblox unblock.\n\nMost statuses are only confirmed up to mid-2026. No candidates were left unverified. Model: Opus 5.5, single verifier pass."
+  },
+  {
+   "angle": "status-ai-dev",
+   "summary": "I checked 20 claims, 16 service entries and 6 UX findings (run by Opus 5.5). Every cited URL was fetched today and checked against the claim; where vendor pages exist, I also checked those directly.\n\nClaims: 4 pass, 12 partial, 4 fail.\n- Pass: ChatGPT SNI incident, AI-provider geo-refusal, Claude bans, VPN context.\n- Fail: Copilot (vendor blog only), Canva (source 404), Cloudflare/WARP (\"no block found\" is contradicted by a 2022 report naming WARP among blocked VPNs), GitLab/npm (cited article never mentions them).\n\nServices: 6 pass (chatgpt, claude, gemini, github, apple_facetime, windows_update), 7 partial, 3 fail (copilot, canva, warp).\n\nUX findings: 4 pass, 2 partial.\n\nPrimary vendor pages, live today: Anthropic (anthropic.com/legal/supported-regions), OpenAI (developers.openai.com/api/docs/supported-countries) and Google (support.google.com/gemini/answer/13575153). None of them lists Russia. Use these instead of the Amnezia VPN blog.\n\nDead or unreadable sources:\n- workspace.ru Canva page: 404.\n- securitylab.ru/news/574808.php: 401 bot wall, and the Wayback snapshot is the same 401. So \"33 cities / 94%\", \"19 cities\" and \"Codespaces only\" are unverified.\n\nKey corrections:\n- PyPI blocker \"rkn_dpi_sni\" overstates the evidence: RKN denied it, and kod.ru says the diagnostic is not proof.\n- public_dns \"rkn_throttle\" is the wrong label; the source describes interception and redirect. The same source also reports DoH and DoT disrupted, so encrypted DNS is not a guaranteed fix.\n- Docker Hub and Notion rest on 2024 sources; nothing from 2026 measures their current status.\n- Claude's second wave is \"early October\", not \"1 Oct\".\n- Airtable, Rambler, OONI, ntc.party and \"RKN recommends dropping Cloudflare/ECH\" are cited without any source that was opened.\n\nDomains: none are invented. oaiusercontent.com and notion-static.com are registered (Cloudflare NS) but have no apex A record, so probe subdomains such as files.oaiusercontent.com. registry-1.docker.io/v2/ normally returns 401, so the app must not treat that as a block.\n\nTiering: most passing evidence is secondary news media reporting original measurements (COMSS, detector404, Habr), not the measurements themselves.\n\nProcess note: the shared folder scratchpad/pages is being written by another agent; one file there was overwritten during this run. All evidence comes from my private copies in <local scratch>"
+  },
+  {
+   "angle": "tech-cloudflare-whitelists",
+   "summary": "I checked 14 claims, 5 service entries and 7 UX findings against 25 retrieved sources (2026-11-16). Results: claims 7 pass, 6 partial, 1 fail; services 3 pass, 2 partial; UX 6 pass, 1 partial; none left unverified.\n\nErrors found:\n1. The Lantern corpus page is an LLM-tagged auto-summary and misreads the FOCI 2026 paper. The primary PDF (petsymposium.org, Table 2, payload 9) shows QUIC Initial with ECH outer SNI cloudflare-ech.com NOT blocked at all three Russian vantage points. ECH blocking is confirmed only for TCP/TLS (net4people #417, Meduza).\n2. example.com now resolves to Cloudflare IPs (ARIN RDAP: CLOUDFLARENET), so it is a wrong 'non-Cloudflare' control for whitelist detection.\n3. The '10-14 packets' figure is from the Cloudflare blog (26 Jun 2025), not Mediazona.\n4. The cdn-cgi/trace test endpoint returns 215 bytes and cannot detect the 16-20 freeze.\n5. cloudflare-dns.com and dns.quad9.net are real domains, but no verified source reports them blocked.\n\nCould not verify:\n- securitylab.ru is behind a site-wide Qrator bot wall (HTTP 401, even for nonexistent paths). The analytics piece 574576 was read via a Wayback snapshot; both blog posts (one in a 'SimlpeHacker' path, a possible typo) have no archive copy.\n- The St Petersburg 4 July 2026 date, the ntc.party forum anecdotes and the second Habr summary.\n- Habr 985674 and 992232 are weak user posts.\n\nStrongest sources: the Cloudflare blog, the FOCI 2026 PDF, hyperion-cs dpi-checkers docs, README and issue #18, 3DNews/Forbes, Rozetked, Anti-Malware and Risky Bulletin. Verifier model: Opus 5.5. No sub-agents."
+  },
+  {
+   "angle": "tools-ux",
+   "summary": "Verified 38 items: 13 claims, 5 service entries and 20 UX findings. Results: 26 pass, 11 partial, 1 fail. Nothing was left unverified.\n\nSources checked live:\n- GitHub REST API: repo metadata, releases, issues and full comment threads for 18162/10162/522, the search-by-comments ranking, competitor repos and PR diffs.\n- Raw Flowseal README, general.bat, list-general.txt and list-google.txt.\n- bol-van zapret windows.md and readme.md, and the zapret2 README.\n- Habr 1002160 and 994412, CNews 700058, Meduza and vc.ru.\n- The IANA TLD list and DNS lookups.\n\nDead or unreachable:\n- ntc.party (connection refused).\n- securitylab.ru (HTTP 401). This is why 'Blocking background' fails.\n- DuckDuckGo and Bing both returned captchas, so no replacement source was found for the 20 Feb 2026 FSB law.\n\nKey corrections:\n1. zapret2 does have formal releases (v1.0.7 on 2026-11-05).\n2. The differentiator claim is partly refuted. m0xvi/zapret-gui v2.2.4 (2026-11-13) already has a 'Determine cause' button (DPI/provider vs external vs strategy, with confidence), DNS/TCP/HTTPS/TLS failure reasons, and a monitoring watchdog that auto-reselects strategies. Its 'strategy editor' is only on the roadmap. No competitor checked distinguishes geo-blocks, whitelists or IP blocks, so narrow the differentiator to that.\n3. The whitelist law date, the FSB clause, '120+ services' and 'mobile only' are unsupported by the cited sources. The 60%/88%/51% figures and the 5 Sep 2025 / 23 Apr 2026 list dates are confirmed.\n4. YouTube domains are confirmed in list-google.txt.\n5. Issue #522 is mis-cited for Discord voice. Use #12487 and the release 1.9.8 notes instead.\n\nFlagged domains and repos:\n- discord.status: invalid TLD, NXDOMAIN, but present in Flowseal's list.\n- cloudfront.net: Amazon, mis-grouped under Cloudflare.\n- lECL1PS3l/zgui: repo returns 404.\n- cloudflare-dns.com: written as '^' (exact match) in the list.\n\nEvidence tiers: tool repos, docs and issue threads are primary but anecdotal for outage causes. CNews and Meduza are secondary news. vc.ru and Habr are blog-tier.\n\nScratch files are in <local scratch>\n\nModel: Opus 5.5 (this verifier)."
+  },
+  {
+   "angle": "tests-endpoints",
+   "summary": "I checked 10 claims, 12 service entries and 7 UX findings, all by direct fetch, curl and DNS/registration lookups (single Opus 5.5 verifier, no sub-agents). Results: 8 pass, 19 partial, 2 fail.\n\nSources: every cited URL returns 200 except 3dnews 1112168 (Discord), which is a soft 404 redirecting to the homepage. DW (2024-10-11) replaces it.\n\nMain corrections:\n- Cloudflare is not a control in RU. Cloudflare's own blog (2025-06-26) says Russian ISPs have throttled Cloudflare-protected services to the first 16 KB since 2025-06-09. Also, bytes=16384 cannot detect a 16 KB cut, so use 64 KB or more.\n- cloudfront.net is AWS, not Cloudflare.\n- OpenAI's official supported-countries list does not include Russia, so the ChatGPT provider geo-block is confirmed by a primary source. The exact JSON code string is backed only by the gptprompts.ai blog.\n- Mediazona (2026-04-07) confirms the Feb 2026 removal of YouTube, Facebook and WhatsApp domains from Russia's national DNS (NSDI), WhatsApp's nationwide throttling from late Nov 2025, and RKN's announcement of intensified Telegram restrictions on 2026-02-10. The checker needs a DNS-layer test.\n- Domains that look invented or wrong:\n  - discord.status: invalid TLD.\n  - discordpartygames.com: not registered.\n  - telegram-cdn.org: on registrar hold, NXDOMAIN.\n  - yting.com: a Chinese-registrar typo-squat, not Google.\n  - usercontent.dev: Telegram ownership unconfirmed.\n  - ton.org: belongs to TON, not Telegram.\n\nStill unverified:\n- Roblox's anti-VPN ban.\n- RKN 'no grounds to unblock' for Discord.\n- 2025-2026 status for Discord, X, Twitch/Steam/FACEIT and Hetzner.\n- Telegram DC IP ranges.\n- The March 2022 Meta block date.\n\nRe-run baselines (loc=US) match apart from minor size differences: venus/pluto 555 B, jtvnw 146 B, youtube.com 873 KB. Hetzner needs an explicit Range header. The DigitalOcean speedtest hosts do not resolve.\n\nThe 2024 Meduza sources are fine for historical start dates but not for current status. 0 items left unverified."
+  }
+ ]
+}

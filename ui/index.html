@@ -23,6 +23,7 @@
   --stripe-b: #f0a800;
   --focus: #1f6feb;
   --row-h: 46px;
+  --gutter: 28px;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -51,18 +52,22 @@ body {
   color: var(--ink);
   font: 400 15px/1.45 "Onest", "Segoe UI", sans-serif;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr auto;
   min-width: 720px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
 }
+body.done { grid-template-rows: auto 1fr; }
+body.done > :is(.verdict, .notices, .board, .status) { display: none; }
 button { font: inherit; color: inherit; }
+button:disabled { opacity: .55; cursor: default; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+[hidden] { display: none !important; }
 
 /* top bar */
 .top {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 28px 0;
+  padding: 14px var(--gutter) 0;
 }
 .wordmark { display: flex; align-items: center; gap: 10px; font: 700 17px/1 "Unbounded", sans-serif; letter-spacing: -0.01em; }
 .wordmark svg { display: block; }
@@ -75,7 +80,7 @@ button { font: inherit; color: inherit; }
 /* verdict */
 .verdict {
   display: grid; grid-template-columns: 1fr auto; gap: 8px 32px; align-items: end;
-  padding: 22px 28px 18px;
+  padding: 22px var(--gutter) 16px;
 }
 .verdict h1 {
   margin: 0; font: 600 30px/1.12 "Unbounded", sans-serif; letter-spacing: -0.02em;
@@ -86,21 +91,45 @@ button { font: inherit; color: inherit; }
 .primary {
   min-width: 190px; height: 50px; padding: 0 26px; border: 0; border-radius: 12px; cursor: pointer;
   background: var(--detour); color: var(--detour-ink); font-weight: 650; font-size: 16px;
-  box-shadow: inset 0 -3px 0 rgba(0,0,0,.14);
+  box-shadow: inset 0 -3px 0 rgba(0,0,0,.14); white-space: nowrap;
 }
 .primary:hover { filter: brightness(1.05); }
 .primary:active { transform: translateY(1px); box-shadow: inset 0 -1px 0 rgba(0,0,0,.14); }
 .primary.calm { background: var(--ink); color: var(--paper); }
+.primary.cancel { background: none; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--faint); font-weight: 550; font-size: 15px; }
+.primary.cancel:hover { box-shadow: inset 0 0 0 1.5px var(--ink); filter: none; }
 .link {
   background: none; border: 0; padding: 4px 2px; cursor: pointer; color: var(--muted);
   text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px;
 }
 .link:hover { color: var(--ink); text-decoration-color: currentColor; }
-.progress { grid-column: 1 / -1; height: 4px; background: var(--paper-2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-.progress > i { display: block; height: 100%; width: 0; background: var(--detour); transition: width .4s ease; }
+.progress { grid-column: 1 / -1; margin-top: 6px; }
+.progress .bar { height: 4px; background: var(--paper-2); border-radius: 2px; overflow: hidden; }
+.progress .bar > i { display: block; height: 100%; width: 0; background: var(--detour); transition: width .4s ease; }
+.progress .meta { display: flex; justify-content: space-between; gap: 16px; margin-top: 6px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* notices: things found on this computer that change what the check means */
+.notices { padding: 0 var(--gutter) 12px; display: grid; gap: 6px; max-height: min(36vh, 240px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--faint) transparent; }
+.notice {
+  display: grid; grid-template-columns: 1fr auto; gap: 4px 18px; align-items: center;
+  padding: 9px 14px 9px 18px; background: var(--paper-2); border-radius: 10px; position: relative;
+}
+.notice::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 0 2px 2px 0; background: var(--slate); }
+.notice[data-level="error"]::before { background: var(--bad); }
+.notice[data-level="warn"]::before { background: var(--detour); }
+.notice .body { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; min-width: 0; }
+.notice .body b { display: block; font-weight: 600; }
+.notice .body span {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  color: var(--muted); font-size: 13.5px; margin-top: 1px; max-width: 78ch;
+}
+.notice[data-level="info"] .body span { -webkit-line-clamp: 1; }
+.notice .body[aria-expanded="true"] span { -webkit-line-clamp: unset; display: block; }
+.notice .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; max-width: 48ch; }
+.more { justify-self: start; font-size: 13.5px; padding: 0 2px; }
 
 /* board */
-.board { min-height: 0; display: grid; grid-template-rows: auto 1fr; padding: 0 28px; }
+.board { min-height: 0; display: grid; grid-template-rows: auto 1fr; padding: 0 var(--gutter); --route-col: minmax(240px, 1fr); }
 .legend {
   display: grid; grid-template-columns: var(--route-col) 11.5rem 1fr; align-items: end;
   font-size: 12.5px; color: var(--muted); padding: 0 0 6px;
@@ -108,13 +137,13 @@ button { font: inherit; color: inherit; }
 .legend .you { position: relative; display: block; height: 18px; }
 .legend .you span { position: absolute; bottom: 0; white-space: nowrap; }
 .legend .you span + span { left: calc(var(--gate-x) - 7px); }
+.legend .prov { grid-column: 2 / -1; padding-left: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.legend .prov b { font-weight: 500; color: var(--ink); }
 .rows {
-  --route-col: minmax(240px, 1fr);
   overflow-y: auto; overflow-x: hidden; min-height: 0;
   border-top: 1px solid var(--paper-2);
   scrollbar-width: thin; scrollbar-color: var(--faint) transparent;
 }
-.board { --route-col: minmax(240px, 1fr); }
 .group {
   display: grid; grid-template-columns: var(--route-col) 11.5rem 1fr; align-items: center;
   height: 30px; color: var(--muted); font-size: 12.5px; font-weight: 500;
@@ -128,10 +157,11 @@ button { font: inherit; color: inherit; }
 }
 .row:hover .name { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
 .row .route-wrap { grid-row: 1 / span 2; align-self: stretch; position: relative; min-height: var(--row-h); }
-.route-wrap svg, .group .route-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
-.row .name { font-weight: 600; padding: 12px 0 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.route-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+.row .name { font-weight: 600; padding: 12px 12px 0 14px; line-height: 1.3; overflow-wrap: anywhere; }
 .row .state { padding: 12px 8px 0 0; color: var(--muted); }
 .row[data-state="works"] .state, .row[data-state="fixed"] .state { color: var(--ink); }
+.row[data-state="unverified"] .state { color: var(--slate); }
 .row .detail {
   grid-column: 2 / -1; display: none; padding: 2px 8px 12px 14px; color: var(--muted); font-size: 13.5px; max-width: 70ch;
 }
@@ -139,12 +169,12 @@ button { font: inherit; color: inherit; }
 
 /* status line */
 .status {
-  display: flex; align-items: center; gap: 18px; padding: 10px 28px 12px; color: var(--muted); font-size: 13.5px;
+  display: flex; align-items: center; gap: 18px; padding: 10px var(--gutter) 12px; color: var(--muted); font-size: 13.5px;
   border-top: 1px solid var(--paper-2);
 }
 .status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--slate); flex: none; }
 .status.on .dot { background: var(--ok); }
-.status .grow { flex: 1; }
+.status .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* route drawing */
 .trunk { stroke: var(--ink); stroke-width: 3; }
@@ -162,6 +192,7 @@ button { font: inherit; color: inherit; }
 .node.ok { fill: var(--ok); stroke: var(--ok); }
 .node.detour { fill: var(--detour); stroke: var(--ink); stroke-width: 1.5; }
 .node.hollow { fill: var(--paper); stroke: var(--faint); }
+.node.unk { fill: var(--paper); stroke: var(--slate); stroke-width: 2; }
 .node.bad { fill: var(--paper); stroke: var(--bad); }
 .cross { stroke: var(--bad); stroke-width: 3; stroke-linecap: round; }
 .wall-end { stroke: var(--slate); stroke-width: 3.5; stroke-linecap: round; }
@@ -173,39 +204,77 @@ button { font: inherit; color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   .probe, .ln.draw { animation: none; }
-  .progress > i { transition: none; }
+  .progress .bar > i { transition: none; }
 }
+
+/* end screen after uninstall */
+.end { align-self: center; padding: 0 var(--gutter) 40px; max-width: 640px; }
+.end h1 { margin: 0 0 12px; font: 600 30px/1.12 "Unbounded", sans-serif; letter-spacing: -0.02em; }
+.end p { margin: 8px 0 0; color: var(--muted); text-wrap: pretty; }
+.end .route-wrap { display: block; position: relative; height: var(--row-h); width: 360px; margin-bottom: 18px; }
 
 /* settings sheet */
 .scrim { position: fixed; inset: 0; background: rgba(10,16,22,.38); display: none; }
 .scrim.open { display: block; }
 .sheet {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); background: var(--paper);
-  border-left: 1px solid var(--paper-2); padding: 22px 26px; overflow-y: auto; display: none;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 92vw); background: var(--paper);
+  border-left: 1px solid var(--paper-2); padding: 22px 26px 28px; overflow-y: auto; display: none;
+  scrollbar-width: thin; scrollbar-color: var(--faint) transparent;
 }
 .sheet.open { display: block; }
 .sheet h2 { font: 600 20px/1.2 "Unbounded", sans-serif; margin: 0 0 18px; letter-spacing: -0.01em; }
-.sheet h3 { font-size: 15px; margin: 22px 0 8px; }
+.sheet h3 { font-size: 15px; margin: 24px 0 8px; }
 .sheet p { color: var(--muted); margin: 4px 0; font-size: 14px; }
+.sheet .gap { margin-top: 10px; }
 .opt { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
-.opt input { margin-top: 3px; accent-color: var(--ok); width: 17px; height: 17px; }
+.opt input { margin-top: 3px; accent-color: var(--ok); width: 17px; height: 17px; flex: none; }
 .opt small { display: block; color: var(--muted); font-size: 13px; }
+.svc-cat { font-size: 13px; color: var(--muted); margin: 10px 0 2px; }
 .svc-list { columns: 2; column-gap: 18px; }
-.svc-list label { display: flex; gap: 8px; align-items: center; padding: 3px 0; break-inside: avoid; }
-.svc-list input { accent-color: var(--ok); }
+.svc-list label { display: flex; gap: 8px; align-items: center; padding: 3px 0; break-inside: avoid; font-size: 14px; }
+.svc-list input { accent-color: var(--ok); flex: none; }
 .btn2 {
   border: 1px solid var(--faint); background: none; border-radius: 10px; padding: 9px 14px; cursor: pointer; font-weight: 550;
 }
 .btn2:hover { border-color: var(--ink); }
+.btn2.small { padding: 5px 12px; font-size: 13.5px; border-radius: 8px; white-space: nowrap; }
 .btn2.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.btn2.solid { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn2.solid.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
 select { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--faint); background: var(--paper); color: var(--ink); width: 100%; }
 .close { position: absolute; top: 16px; right: 16px; }
+#busy-hint { color: var(--ink); background: var(--paper-2); border-radius: 8px; padding: 8px 10px; }
+.about { border-top: 1px solid var(--paper-2); margin-top: 24px; padding-top: 14px; }
+
+/* modal dialogs: report preview and uninstall */
+dialog {
+  border: 0; border-radius: 14px; padding: 22px 24px 20px; width: min(560px, calc(100vw - 48px));
+  background: var(--paper); color: var(--ink); box-shadow: 0 18px 50px rgba(0,0,0,.28);
+}
+dialog::backdrop { background: rgba(10,16,22,.42); }
+dialog h2 { font: 600 19px/1.25 "Unbounded", sans-serif; margin: 0 0 10px; letter-spacing: -0.01em; }
+dialog p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+dialog pre {
+  margin: 12px 0 16px; padding: 12px 14px; max-height: 42vh; overflow: auto; background: var(--paper-2); border-radius: 10px;
+  font: 12.5px/1.5 Consolas, "Cascadia Mono", monospace; white-space: pre-wrap; user-select: text;
+}
+dialog .opt { padding: 6px 0; }
+dialog .btns { justify-content: flex-end; margin-top: 16px; }
 
 @media (max-width: 860px) {
-  .verdict h1 { font-size: 25px; }
-  .board, .rows, .legend { --route-col: minmax(200px, 1fr); }
+  :root { --gutter: 22px; }
+  .verdict h1, .end h1 { font-size: 25px; }
+  .board { --route-col: minmax(200px, 1fr); }
   .row, .group, .legend { grid-template-columns: var(--route-col) 9.5rem 1fr; }
   .primary { min-width: 160px; }
+  .notice .acts { max-width: 36ch; }
+}
+@media (max-height: 600px) {
+  .verdict { padding-top: 14px; padding-bottom: 12px; }
+  .verdict p { margin-top: 6px; }
+  .notices { max-height: 34vh; }
+  .notice .body span { -webkit-line-clamp: 1; }
 }
 </style>
 </head>
@@ -227,16 +296,21 @@ select { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px soli
     <p id="v-text"></p>
   </div>
   <div class="actions">
-    <button class="primary" id="main-btn">Проверить</button>
+    <button class="primary" id="main-btn" disabled>Проверить</button>
     <button class="link" id="second-btn" hidden></button>
   </div>
-  <div class="progress" id="progress" hidden><i></i></div>
+  <div class="progress" id="progress" hidden>
+    <div class="bar"><i></i></div>
+    <div class="meta"><span id="p-count"></span><span id="p-eta"></span></div>
+  </div>
 </section>
+
+<section class="notices" id="notices" aria-label="Что найдено на компьютере" hidden></section>
 
 <section class="board" aria-label="Доступ к сервисам">
   <div class="legend" id="legend">
     <span class="you"><span>Ваш компьютер</span><span>фильтр провайдера</span></span>
-    <span></span><span></span>
+    <span class="prov" id="prov"></span>
   </div>
   <div class="rows" id="rows" role="list"></div>
 </section>
@@ -244,39 +318,105 @@ select { font: inherit; padding: 8px 10px; border-radius: 10px; border: 1px soli
 <footer class="status" id="status">
   <span class="dot"></span>
   <span class="grow" id="status-text">Обход выключен</span>
-  <button class="link" id="status-btn" hidden></button>
+  <button class="link" id="report-btn" hidden>Скопировать отчёт</button>
+  <button class="link" id="status-btn" hidden>Выключить</button>
 </footer>
+
+<section class="end" id="end" hidden aria-live="polite">
+  <span class="route-wrap"><svg id="end-route" aria-hidden="true"></svg></span>
+  <h1 id="end-title">EzPzDPI удалена</h1>
+  <p id="end-text"></p>
+  <p>Окно можно закрыть.</p>
+</section>
 
 <div class="scrim" id="scrim"></div>
 <aside class="sheet" id="sheet" aria-label="Настройки" role="dialog">
-  <button class="ghost close" id="close-settings" aria-label="Закрыть">Закрыть</button>
+  <button class="ghost close" id="close-settings">Закрыть</button>
   <h2>Настройки</h2>
-  <label class="opt"><input type="checkbox" id="opt-autostart" checked>
+  <p id="busy-hint" role="status" hidden><b>Подождите, идёт операция.</b> Настройки снова заработают, когда она закончится.</p>
+  <label class="opt"><input type="checkbox" id="opt-autostart">
     <span>Запускать вместе с Windows<small>Обход будет работать сразу после включения компьютера.</small></span></label>
-  <label class="opt"><input type="checkbox" id="opt-heal" checked>
+  <label class="opt"><input type="checkbox" id="opt-heal">
     <span>Чинить автоматически<small>При входе в Windows программа проверит сервисы и подберёт новый обход, если старый перестал работать.</small></span></label>
   <label class="opt"><input type="checkbox" id="opt-games">
     <span>Игровой режим<small>Обход для игр, которые соединяются не через браузерные порты. Может замедлить другие программы.</small></span></label>
+
   <h3>Что проверять и чинить</h3>
-  <div class="svc-list" id="svc-list"></div>
+  <div id="svc-list"></div>
+
+  <h3>Защищённый DNS</h3>
+  <div id="dns-on">
+    <label class="opt"><input type="checkbox" id="opt-dns">
+      <span>Узнавать адреса сайтов в зашифрованном виде<small>Помогает, когда провайдер подменяет адреса сайтов. Windows будет спрашивать их у Cloudflare, Google или Quad9 по защищённому каналу. Выключение вернёт прежние настройки сети.</small></span></label>
+    <p id="dns-provider" hidden></p>
+  </div>
+  <p id="dns-off" hidden>В Windows 10 защищённый DNS включается в браузере: Настройки → Конфиденциальность и безопасность → Использовать безопасный DNS.</p>
+
+  <h3>Защитник Windows</h3>
+  <label class="opt"><input type="checkbox" id="opt-defender">
+    <span>Не проверять папку EzPzDPI<small>Защитник иногда удаляет файлы обхода, потому что они работают с сетевым трафиком. Исключение касается только папки программы.</small></span></label>
+
+  <div id="foreign-box" hidden>
+    <h3>Прежний обход</h3>
+    <p id="foreign-text"></p>
+    <p class="gap"><button class="btn2" id="foreign-btn">Вернуть прежний обход</button></p>
+  </div>
+
   <h3>Варианты обхода</h3>
-  <p id="strat-version">Набор Flowseal 1.10.4, 25 вариантов</p>
-  <p><button class="btn2" id="update-btn">Обновить с GitHub</button></p>
-  <p style="margin-top:12px">Выбрать вариант вручную</p>
+  <p id="strat-version"></p>
+  <p class="gap"><button class="btn2" id="update-btn">Обновить с GitHub</button></p>
+  <p class="gap">Выбрать вариант вручную</p>
   <select id="manual"></select>
+
   <h3>Если что-то пошло не так</h3>
-  <p><button class="btn2" id="log-btn">Открыть журнал</button></p>
-  <p style="margin-top:10px"><button class="btn2 danger" id="remove-btn">Выключить и удалить всё</button></p>
-  <p style="margin-top:18px">EzPzDPI <span id="app-version"></span>. Обход делают zapret, Flowseal и GoodbyeDPI. Исходный код на GitHub.</p>
+  <div class="btns gap">
+    <button class="btn2" id="report-btn2">Скопировать отчёт</button>
+    <button class="btn2" id="log-btn">Открыть журнал</button>
+  </div>
+  <p class="gap"><button class="btn2 danger" id="remove-btn">Выключить и удалить всё</button></p>
+
+  <div class="about">
+    <p>EzPzDPI <span id="app-version"></span> восстанавливает доступ к сервисам, которые замедляет или блокирует провайдер. Обход делают zapret, Flowseal и GoodbyeDPI.</p>
+    <p class="gap">Программа бесплатна и никогда не просит деньги, пароли, номер телефона или вход в Госуслуги и банк.</p>
+    <p class="gap">Это не VPN: программа не скрывает личность, решение об использовании принимаете вы. Проверки подключаются к проверяемым сайтам напрямую, как обычный браузер, авторам ничего не отправляется.</p>
+    <p class="gap"><button class="link" id="source-btn">Исходный код на GitHub</button></p>
+  </div>
 </aside>
+
+<dialog id="report-dlg" aria-labelledby="report-h">
+  <h2 id="report-h">Отчёт для помощника</h2>
+  <p>Вот что будет скопировано. Имена пользователей в путях и IP-адреса убраны.</p>
+  <pre id="report-text"></pre>
+  <div class="btns">
+    <button class="btn2" id="report-close" autofocus>Закрыть</button>
+    <button class="btn2 solid" id="report-copy">Скопировать</button>
+  </div>
+</dialog>
+
+<dialog id="remove-dlg" aria-labelledby="remove-h">
+  <h2 id="remove-h">Выключить и удалить EzPzDPI?</h2>
+  <p>Обход выключится, служба и всё, что поставила программа, будет удалено. Изменённые настройки Windows вернутся как были.</p>
+  <div id="remove-foreign" hidden>
+    <p class="gap" id="remove-foreign-q"></p>
+    <label class="opt"><input type="radio" name="restore" id="restore-yes" checked><span>Вернуть как было</span></label>
+    <label class="opt"><input type="radio" name="restore" id="restore-no"><span>Не возвращать<small>Обход будет выключен полностью, Discord и YouTube снова могут не работать.</small></span></label>
+  </div>
+  <div class="btns">
+    <button class="btn2" id="remove-cancel" autofocus>Отмена</button>
+    <button class="btn2 solid danger" id="remove-ok">Удалить</button>
+  </div>
+</dialog>
 
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
 const SVGNS = "http://www.w3.org/2000/svg";
+const REPO_URL = "https://github.com/semanticparadox/EzPzDPI";
+const CANCEL_LABEL = "Отменить — ничего не сломается";
 
 const STATE_TEXT = {
   unknown: "Не проверено",
+  unverified: "Не удалось проверить",
   testing: "Проверяю",
   works: "Работает",
   blocked: "Заблокирован",
@@ -289,8 +429,34 @@ const STATE_TEXT = {
   offline: "Нет соединения",
 };
 
+// Catalog categories are folded into a few groups so the board stays short.
+const CATEGORY = { video: "Видео и соцсети", social: "Видео и соцсети", messenger: "Мессенджеры и звонки", games: "Игры", ai: "ИИ и работа", dev: "ИИ и работа", web: "Сайты" };
+const catName = (c) => CATEGORY[c] || "Другое";
+
 let state = null;
 let lastStates = {};
+const expandedRows = new Set();     // survive re-renders while Go pushes progress
+const expandedNotices = new Set();
+let showAllNotices = false;
+
+/* ---------- bridge ---------- */
+
+// Go marks the window with __EZPZ_APP__ and binds ezpz* functions; without
+// them the page runs its own demo so the design can be checked in a browser.
+const BRIDGE = typeof window.__EZPZ_APP__ !== "undefined" || typeof window.ezpzReady === "function";
+
+// call forwards to a Go binding with exactly the given arguments. Bindings
+// return promises; a rejected one must not leave an unhandled error.
+function call(name, ...args) {
+  if (BRIDGE && typeof window[name] === "function") {
+    try { return Promise.resolve(window[name](...args)).catch((e) => console.warn(name, e)); }
+    catch (e) { console.warn(name, e); return Promise.resolve(null); }
+  }
+  return demoCall(name, args);
+}
+window.ezpzState = (s) => { state = s || {}; render(); };
+
+/* ---------- small helpers ---------- */
 
 function el(tag, attrs, parent) {
   const n = document.createElementNS(SVGNS, tag);
@@ -298,6 +464,37 @@ function el(tag, attrs, parent) {
   if (parent) parent.appendChild(n);
   return n;
 }
+
+function h(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+// plural picks the Russian word form for n (1 минута, 2 минуты, 5 минут).
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+// etaText keeps the estimate honest and coarse: minutes, never seconds.
+function etaText(sec) {
+  if (!(sec > 0)) return "";
+  if (sec < 60) return "осталось меньше минуты";
+  const m = Math.round(sec / 60);
+  return `осталось примерно ${m} ${plural(m, "минута", "минуты", "минут")}`;
+}
+
+// lowerFirst lets a provenance phrase follow a colon, but leaves acronyms such as "VPN" alone.
+function lowerFirst(s) {
+  if (s.length > 1 && s[1] === s[1].toUpperCase() && s[1] !== s[1].toLowerCase()) return s;
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/* ---------- route drawing ---------- */
 
 // Geometry shared by every row so the gate lines up into one barrier.
 function geometry(w) {
@@ -379,6 +576,12 @@ function routeFor(svg, g, s, animate) {
       line(`M${xs} ${y} H${xs + 26}`, "slate dash");
       drawGate(svg, g);
       break;
+    case "unverified":
+      // Grey, never red: a probe that could not finish says nothing about blocking.
+      drawGate(svg, g);
+      line(`M${xs} ${y} H${xe - 7}`, "slate dash thin");
+      el("circle", { cx: xe, cy: y, r: 5, class: "node unk" }, svg);
+      break;
     case "testing": {
       drawGate(svg, g);
       line(`M${xs} ${y} H${xe}`, "idle");
@@ -396,204 +599,555 @@ function routeFor(svg, g, s, animate) {
   drawTrunk(svg, g);
 }
 
-function stateLabel(s) {
+/* ---------- verdict ---------- */
+
+// shownState turns "unknown" into "could not verify" once a check has run.
+function shownState(s) {
+  if (s.state === "unknown" && state.phase && state.phase !== "idle") return "unverified";
+  return s.state;
+}
+
+function stateLabel(s, st) {
   if (s.label) return s.label;
-  let t = STATE_TEXT[s.state] || s.state;
-  if ((s.state === "blocked" || s.state === "throttled") && s.fixable) t += ", чинится обходом";
+  let t = STATE_TEXT[st] || st;
+  if ((st === "blocked" || st === "throttled") && s.fixable) t += ", чинится обходом";
   return t;
 }
 
-const CATEGORY = { video: "Видео и соцсети", social: "Видео и соцсети", messenger: "Мессенджеры и звонки", games: "Игры", ai: "ИИ и работа", dev: "ИИ и работа", web: "Сайты" };
-
-function render() {
-  if (!state) return;
+function renderVerdict() {
   const v = state.verdict || {};
   $("v-title").textContent = v.title || "";
   $("v-text").textContent = v.text || "";
+  $("v-text").hidden = !v.text;
+
+  // While busy the main button becomes the cancel button. Older controllers
+  // without cancel_label stop through ezpzMain, so keep that path.
   const main = $("main-btn");
-  main.textContent = v.action || "Проверить";
-  main.classList.toggle("calm", !!v.calm);
-  main.disabled = !!v.busy && !v.action;
+  const cancel = v.busy && (v.cancel_label || !v.action);
+  main.dataset.mode = cancel ? "cancel" : "main";
+  main.textContent = cancel ? (v.cancel_label || CANCEL_LABEL) : (v.action || "");
+  main.hidden = !main.textContent;
+  main.disabled = false;
+  main.classList.toggle("cancel", !!cancel);
+  main.classList.toggle("calm", !cancel && !!v.calm);
+
   const sec = $("second-btn");
   sec.hidden = !v.second;
   sec.textContent = v.second || "";
-  const prog = $("progress");
-  prog.hidden = !(state.progress && state.progress.n);
-  if (state.progress && state.progress.n) prog.firstElementChild.style.width = Math.round(100 * state.progress.i / state.progress.n) + "%";
 
-  const st = $("status");
-  st.classList.toggle("on", !!(state.bypass && state.bypass.on));
-  $("status-text").textContent = state.bypass && state.bypass.on
-    ? `Обход включён: ${state.bypass.strategy}${state.bypass.autostart ? ", запускается вместе с Windows" : ", до перезагрузки"}`
-    : "Обход выключен";
-  const sb = $("status-btn");
-  sb.hidden = !(state.bypass && state.bypass.on);
-  sb.textContent = "Выключить";
+  renderProgress(state.progress);
+}
 
+function renderProgress(p) {
+  const on = !!(p && p.n);
+  $("progress").hidden = !on;
+  if (!on) return;
+  const i = Math.min(p.i || 0, p.n);
+  $("progress").querySelector(".bar > i").style.width = Math.round(100 * i / p.n) + "%";
+  $("p-count").textContent = `${i} из ${p.n}`;
+  $("p-eta").textContent = etaText(p.eta_sec);
+}
+
+// willFix is true when the main button will switch the user's other bypass off.
+function willFix() {
+  const act = (state.verdict && state.verdict.action) || "";
+  return !!state.confirm_fix && state.phase === "diagnosed"
+    && (state.services || []).some((s) => s.fixable)
+    && (act === "Починить" || act === "Подобрать заново");
+}
+
+// Busy while any operation runs (state.busy), not only long ones that show
+// a busy verdict, so clicks are never silently dropped.
+const isBusy = () => !!(state && (state.busy || (state.verdict && state.verdict.busy)));
+
+function onMain() {
+  if (!state) return; // the first state has not arrived yet
+  const btn = $("main-btn");
+  if (btn.dataset.mode === "cancel") {
+    call(state.verdict && state.verdict.cancel_label ? "ezpzCancel" : "ezpzMain");
+    return;
+  }
+  // A fix may switch off a bypass the user set up before; ask first.
+  if (willFix() && !confirm(state.confirm_fix)) return;
+  call("ezpzMain");
+}
+
+/* ---------- notices ---------- */
+
+const LEVEL_ORDER = { error: 0, warn: 1, info: 2 };
+
+function renderNotices() {
+  const box = $("notices");
+  const list = [...(state.notices || [])].sort((a, b) => (LEVEL_ORDER[a.level] ?? 3) - (LEVEL_ORDER[b.level] ?? 3));
+  box.textContent = "";
+  box.hidden = !list.length;
+  // Two notices fit above the board (one on a short window); the rest wait behind a link.
+  const limit = showAllNotices ? list.length : (window.innerHeight < 600 ? 1 : 2);
+  list.slice(0, limit).forEach((n) => box.appendChild(noticeEl(n)));
+  if (list.length > limit) {
+    const more = h("button", "link more", `Ещё ${list.length - limit} ${plural(list.length - limit, "замечание", "замечания", "замечаний")}`);
+    more.addEventListener("click", () => { showAllNotices = true; renderNotices(); });
+    box.appendChild(more);
+  }
+}
+
+function noticeEl(n) {
+  const item = h("div", "notice");
+  item.dataset.level = n.level || "info";
+  item.setAttribute("role", n.level === "error" ? "alert" : "status");
+  const body = h("button", "body");
+  body.setAttribute("aria-expanded", expandedNotices.has(n.id) ? "true" : "false");
+  body.appendChild(h("b", "", n.title || ""));
+  if (n.text) body.appendChild(h("span", "", n.text));
+  body.addEventListener("click", () => {
+    expandedNotices.has(n.id) ? expandedNotices.delete(n.id) : expandedNotices.add(n.id);
+    body.setAttribute("aria-expanded", expandedNotices.has(n.id) ? "true" : "false");
+  });
+  item.appendChild(body);
+  const acts = h("div", "acts");
+  for (const a of n.actions || []) {
+    const b = h("button", "btn2 small", a.label || a.id);
+    b.disabled = isBusy();
+    b.addEventListener("click", () => {
+      if (a.confirm && !confirm(a.confirm)) return;
+      call("ezpzAction", String(n.id || ""), String(a.id || ""));
+    });
+    acts.appendChild(b);
+  }
+  if (acts.childElementCount) item.appendChild(acts);
+  return item;
+}
+
+/* ---------- board ---------- */
+
+function renderProvenance() {
+  const p = $("prov");
+  p.textContent = "";
+  if (!state.provenance) return;
+  p.append("Как проверяли: ");
+  p.appendChild(h("b", "", lowerFirst(state.provenance)));
+  p.title = state.provenance;
+}
+
+function renderRows() {
   const rows = $("rows");
   const width = rows.clientWidth;
   const routeW = Math.max(200, Math.round(width * (width < 860 ? 0.36 : 0.42)));
   rows.textContent = "";
   let lastCat = "";
-  for (const s of state.services) {
-    const cat = CATEGORY[s.category] || "Другое";
-    if (cat !== lastCat) {
-      lastCat = cat;
-      const gr = document.createElement("div");
-      gr.className = "group";
-      const gw = document.createElement("span"); gw.className = "route-wrap";
-      const gs = el("svg", { class: "route" });
-      gw.appendChild(gs); gr.appendChild(gw);
-      const span = document.createElement("span");
-      span.textContent = cat;
-      gr.appendChild(span);
-      rows.appendChild(gr);
-      requestAnimationFrame(() => {
-        const g = geometry(gs.clientWidth || routeW);
-        g.y = 15;
-        drawGate(gs, g); drawTrunk(gs, g);
-      });
-    }
-    const row = document.createElement("button");
-    row.className = "row";
-    row.dataset.state = s.state;
-    row.setAttribute("role", "listitem");
-    row.setAttribute("aria-expanded", "false");
-    const wrap = document.createElement("span"); wrap.className = "route-wrap";
-    const svg = el("svg", { class: "route", "aria-hidden": "true" });
-    wrap.appendChild(svg); row.appendChild(wrap);
-    const name = document.createElement("span"); name.className = "name"; name.textContent = s.name; row.appendChild(name);
-    const lab = document.createElement("span"); lab.className = "state"; lab.textContent = stateLabel(s); row.appendChild(lab);
-    const det = document.createElement("span"); det.className = "detail"; det.textContent = s.detail || "Подробностей нет."; row.appendChild(det);
-    row.addEventListener("click", () => row.setAttribute("aria-expanded", row.getAttribute("aria-expanded") === "true" ? "false" : "true"));
-    rows.appendChild(row);
-    const animate = s.state === "fixed" && lastStates[s.id] && lastStates[s.id] !== "fixed";
-    requestAnimationFrame(() => routeFor(svg, geometry(svg.clientWidth || routeW), s, animate));
+  for (const s of state.services || []) {
+    const cat = catName(s.category);
+    if (cat !== lastCat) { lastCat = cat; rows.appendChild(groupEl(cat, routeW)); }
+    rows.appendChild(rowEl(s, routeW));
   }
-  lastStates = Object.fromEntries(state.services.map((s) => [s.id, s.state]));
+  lastStates = Object.fromEntries((state.services || []).map((s) => [s.id, s.state]));
   requestAnimationFrame(placeLegend);
-  renderSettings();
+}
+
+function groupEl(cat, routeW) {
+  const gr = h("div", "group");
+  const gw = h("span", "route-wrap");
+  const gs = el("svg", { "aria-hidden": "true" });
+  gw.appendChild(gs); gr.appendChild(gw);
+  gr.appendChild(h("span", "", cat));
+  requestAnimationFrame(() => {
+    const g = geometry(gs.clientWidth || routeW);
+    g.y = 15;
+    drawGate(gs, g); drawTrunk(gs, g);
+  });
+  return gr;
+}
+
+function rowEl(s, routeW) {
+  const st = shownState(s);
+  const row = h("button", "row");
+  row.dataset.state = st;
+  row.setAttribute("role", "listitem");
+  row.setAttribute("aria-expanded", expandedRows.has(s.id) ? "true" : "false");
+  const wrap = h("span", "route-wrap");
+  const svg = el("svg", { "aria-hidden": "true" });
+  wrap.appendChild(svg); row.appendChild(wrap);
+  row.appendChild(h("span", "name", s.name));
+  row.appendChild(h("span", "state", stateLabel(s, st)));
+  row.appendChild(h("span", "detail", s.detail || "Подробностей нет."));
+  row.addEventListener("click", () => {
+    expandedRows.has(s.id) ? expandedRows.delete(s.id) : expandedRows.add(s.id);
+    row.setAttribute("aria-expanded", expandedRows.has(s.id) ? "true" : "false");
+  });
+  // Draw the detour only when a row has just turned fixed, not on every push.
+  const animate = st === "fixed" && lastStates[s.id] && lastStates[s.id] !== "fixed";
+  requestAnimationFrame(() => routeFor(svg, geometry(svg.clientWidth || routeW), { ...s, state: st }, animate));
+  return row;
 }
 
 function placeLegend() {
   const first = document.querySelector(".row .route-wrap");
   if (!first) return;
-  const g = geometry(first.clientWidth);
-  $("legend").style.setProperty("--gate-x", g.gx + "px");
+  $("legend").style.setProperty("--gate-x", geometry(first.clientWidth).gx + "px");
+}
+
+function renderStatus() {
+  const b = state.bypass || {};
+  $("status").classList.toggle("on", !!b.on);
+  $("status-text").textContent = b.on
+    ? `Обход включён: ${b.strategy || "вариант подобран"}${b.autostart ? ", запускается вместе с Windows" : ", до перезагрузки"}`
+    : "Обход выключен";
+  $("status-btn").hidden = !b.on;
+  $("report-btn").hidden = !state.report;
+  $("report-btn2").disabled = !state.report;
+}
+
+/* ---------- settings ---------- */
+
+// enabledIDs prefers settings.enabled; older controllers send settings.disabled.
+function enabledIDs() {
+  const st = state.settings || {};
+  if (Array.isArray(st.enabled)) return new Set(st.enabled);
+  const off = new Set(st.disabled || []);
+  return new Set(catalogList().filter((c) => c.default !== false && !off.has(c.id)).map((c) => c.id));
+}
+
+function catalogList() {
+  if (state.catalog && state.catalog.length) return state.catalog;
+  return (state.services || []).map((s) => ({ id: s.id, name: s.name, category: s.category, default: true }));
+}
+
+let svcSig = "";
+// The service list is rebuilt only when the catalog changes, so focus and
+// scroll in the sheet survive frequent state pushes.
+function renderServiceList() {
+  const list = catalogList();
+  const sig = list.map((c) => c.id).join(",");
+  const box = $("svc-list");
+  if (sig !== svcSig) {
+    svcSig = sig;
+    box.textContent = "";
+    const groups = new Map();
+    for (const c of list) {
+      const k = catName(c.category);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(c);
+    }
+    for (const [name, items] of groups) {
+      box.appendChild(h("div", "svc-cat", name));
+      const cols = h("div", "svc-list");
+      for (const c of items) {
+        const l = h("label");
+        const i = h("input"); i.type = "checkbox"; i.value = c.id;
+        i.addEventListener("change", sendSettings);
+        l.appendChild(i); l.appendChild(document.createTextNode(c.name));
+        cols.appendChild(l);
+      }
+      box.appendChild(cols);
+    }
+  }
+  const on = enabledIDs();
+  for (const i of box.querySelectorAll("input")) i.checked = on.has(i.value);
+}
+
+let stratSig = "";
+function renderStrategies() {
+  const list = state.strategies || [];
+  const sig = list.map((s) => s.key).join("|");
+  const sel = $("manual");
+  if (sig !== stratSig || !sel.childElementCount) {
+    stratSig = sig;
+    sel.textContent = "";
+    const o0 = h("option", "", "Выберите вариант…"); o0.value = ""; o0.disabled = true; sel.appendChild(o0);
+    for (const k of list) { const o = h("option", "", k.name); o.value = k.key; sel.appendChild(o); }
+  }
+  sel.value = "";
+  const v = state.versions || {};
+  const parts = [];
+  if (v.flowseal) parts.push(`Flowseal ${v.flowseal}`);
+  if (v.goodbyedpi) parts.push(`GoodbyeDPI ${v.goodbyedpi}`);
+  const n = list.length;
+  $("strat-version").textContent = (parts.length ? `Наборы ${parts.join(" и ")}` : "Наборы вариантов") + `, ${n} ${plural(n, "вариант", "варианта", "вариантов")}`;
+  $("app-version").textContent = v.app || "";
+}
+
+function renderSecurity() {
+  const d = state.secure_dns || {};
+  $("dns-on").hidden = !d.supported;
+  $("dns-off").hidden = !!d.supported;
+  $("opt-dns").checked = !!d.active;
+  $("dns-provider").hidden = !(d.active && d.provider);
+  $("dns-provider").textContent = d.provider ? `Сейчас используется ${d.provider}.` : "";
+  $("opt-defender").checked = !!state.defender_excluded;
+
+  const names = state.foreign_disabled || [];
+  $("foreign-box").hidden = !names.length;
+  $("foreign-text").textContent = names.length
+    ? `При замене было отключено: ${names.join(", ")}. Папки не удалялись, автозапуск можно вернуть.`
+    : "";
 }
 
 function renderSettings() {
-  if (!state.settings) return;
-  $("opt-autostart").checked = !!state.settings.autostart;
-  $("opt-heal").checked = !!state.settings.heal;
-  $("opt-games").checked = !!state.settings.games;
-  const list = $("svc-list");
-  if (!list.childElementCount) {
-    for (const s of state.services) {
-      const l = document.createElement("label");
-      const i = document.createElement("input"); i.type = "checkbox"; i.value = s.id;
-      i.checked = !(state.settings.disabled || []).includes(s.id);
-      i.addEventListener("change", sendSettings);
-      l.appendChild(i); l.appendChild(document.createTextNode(s.name)); list.appendChild(l);
-    }
-  }
-  const sel = $("manual");
-  if (!sel.childElementCount && state.strategies) {
-    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "Автоматически (рекомендуется)"; sel.appendChild(o0);
-    for (const k of state.strategies) { const o = document.createElement("option"); o.value = k.key; o.textContent = k.name; sel.appendChild(o); }
-  }
-  if (state.versions) {
-    $("strat-version").textContent = `Набор Flowseal ${state.versions.flowseal}, ${state.strategies ? state.strategies.length : 0} вариантов`;
-    $("app-version").textContent = state.versions.app;
-  }
+  const st = state.settings || {};
+  $("opt-autostart").checked = !!st.autostart;
+  $("opt-heal").checked = !!st.heal;
+  $("opt-games").checked = !!st.games;
+  renderServiceList();
+  renderSecurity();
+  renderStrategies();
+  const busy = isBusy();
+  $("sheet").querySelectorAll("input, select, button:not(#close-settings):not(#report-btn2):not(#source-btn)").forEach((el) => { el.disabled = busy; });
+  $("busy-hint").hidden = !busy;
 }
 
 function sendSettings() {
-  const disabled = [...document.querySelectorAll("#svc-list input")].filter((i) => !i.checked).map((i) => i.value);
-  call("ezpzSettings", { autostart: $("opt-autostart").checked, heal: $("opt-heal").checked, games: $("opt-games").checked, disabled });
+  const enabled = [...document.querySelectorAll("#svc-list input")].filter((i) => i.checked).map((i) => i.value);
+  call("ezpzSettings", { autostart: $("opt-autostart").checked, heal: $("opt-heal").checked, games: $("opt-games").checked, enabled });
 }
 
-// Bridge: Go binds ezpz* functions; without them the page runs a demo.
-function call(name, arg) {
-  if (typeof window[name] === "function") return window[name](arg);
-  return demoCall(name, arg);
-}
-window.ezpzState = (s) => { state = s; render(); };
+const openSheet = (open) => {
+  $("sheet").classList.toggle("open", open);
+  $("scrim").classList.toggle("open", open);
+  if (open) $("close-settings").focus();
+};
 
-$("main-btn").addEventListener("click", () => call("ezpzMain"));
+/* ---------- dialogs ---------- */
+
+function openReport() {
+  if (!state.report) return;
+  $("report-text").textContent = state.report;
+  $("report-copy").textContent = "Скопировать";
+  $("report-dlg").showModal();
+}
+
+// copyText uses the async clipboard and falls back to a hidden textarea,
+// because WebView2 can refuse the async API on file:// pages.
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (_) { /* fall back */ }
+  const t = h("textarea"); t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+  document.body.appendChild(t); t.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+  t.remove();
+  return ok;
+}
+
+function openRemove() {
+  if (isBusy()) return;
+  const names = state.foreign_disabled || [];
+  $("remove-foreign").hidden = !names.length;
+  $("remove-foreign-q").textContent = names.length ? `Раньше у вас стоял ${names.join(", ")}. Вернуть его как было?` : "";
+  $("restore-yes").checked = true;
+  $("remove-dlg").showModal();
+}
+
+function confirmRemove() {
+  const restore = !!(state.foreign_disabled || []).length && $("restore-yes").checked;
+  $("remove-dlg").close();
+  if (isBusy()) return;
+  openSheet(false);
+  call("ezpzUninstall", restore);
+}
+
+/* ---------- end screen ---------- */
+
+function renderEnd() {
+  const done = state.phase === "uninstalled" || !!state.uninstalled;
+  document.body.classList.toggle("done", done);
+  $("end").hidden = !done;
+  $("open-settings").hidden = done;
+  if (!done) return;
+  openSheet(false);
+  const v = state.verdict || {};
+  $("end-title").textContent = v.title || "EzPzDPI удалена";
+  $("end-text").textContent = v.text || "Обход выключен, всё, что ставила программа, удалено.";
+  const svg = $("end-route");
+  svg.textContent = "";
+  requestAnimationFrame(() => routeFor(svg, geometry(svg.clientWidth || 360), { state: "unknown" }, false));
+}
+
+function render() {
+  if (!state) return;
+  renderEnd();
+  renderVerdict();
+  renderNotices();
+  renderProvenance();
+  renderRows();
+  renderStatus();
+  renderSettings();
+}
+
+/* ---------- wiring ---------- */
+
+$("main-btn").addEventListener("click", onMain);
 $("second-btn").addEventListener("click", () => call("ezpzSecond"));
 $("status-btn").addEventListener("click", () => call("ezpzStop"));
-const openSheet = (open) => { $("sheet").classList.toggle("open", open); $("scrim").classList.toggle("open", open); if (open) $("close-settings").focus(); };
 $("open-settings").addEventListener("click", () => openSheet(true));
 $("close-settings").addEventListener("click", () => openSheet(false));
 $("scrim").addEventListener("click", () => openSheet(false));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") openSheet(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !document.querySelector("dialog[open]")) openSheet(false); });
 for (const id of ["opt-autostart", "opt-heal", "opt-games"]) $(id).addEventListener("change", sendSettings);
+$("opt-dns").addEventListener("change", (e) => call("ezpzSecureDNS", !!e.target.checked));
+$("opt-defender").addEventListener("change", (e) => call("ezpzDefender", !!e.target.checked));
+$("foreign-btn").addEventListener("click", () => {
+  const names = (state.foreign_disabled || []).join(", ");
+  if (confirm(`Включить снова ${names}? Обход EzPzDPI при этом выключится, чтобы два обхода не мешали друг другу.`)) call("ezpzRestoreForeign");
+});
 $("update-btn").addEventListener("click", () => call("ezpzUpdate"));
 $("log-btn").addEventListener("click", () => call("ezpzOpenLog"));
-$("remove-btn").addEventListener("click", () => call("ezpzUninstall"));
-$("manual").addEventListener("change", (e) => call("ezpzManual", e.target.value));
+$("source-btn").addEventListener("click", () => call("ezpzOpenURL", REPO_URL));
+$("manual").addEventListener("change", (e) => {
+  const key = String(e.target.value || "");
+  e.target.value = "";
+  if (!key || isBusy()) return;
+  const ask = state.confirm_replace || "";
+  if (ask && !confirm(ask)) return;
+  call("ezpzManual", key);
+});
+$("report-btn").addEventListener("click", openReport);
+$("report-btn2").addEventListener("click", openReport);
+$("report-close").addEventListener("click", () => $("report-dlg").close());
+$("report-copy").addEventListener("click", async () => {
+  $("report-copy").textContent = (await copyText(state.report || "")) ? "Скопировано" : "Не удалось скопировать";
+});
+$("remove-btn").addEventListener("click", openRemove);
+$("remove-cancel").addEventListener("click", () => $("remove-dlg").close());
+$("remove-ok").addEventListener("click", confirmRemove);
 let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(render, 80); });
 
 /* ---------- demo data (used only when opened outside the app) ---------- */
 const DEMO_SERVICES = [
-  ["youtube", "YouTube", "video"], ["instagram", "Instagram", "social"], ["x", "X (Twitter)", "social"], ["twitch", "Twitch", "video"],
-  ["telegram", "Telegram", "messenger"], ["whatsapp", "WhatsApp", "messenger"], ["discord", "Discord", "messenger"],
+  ["youtube", "YouTube", "video"], ["instagram", "Instagram и Facebook", "social"], ["x", "X (Twitter)", "social"], ["twitch", "Twitch", "video"],
+  ["telegram", "Telegram", "messenger"], ["whatsapp", "WhatsApp", "messenger"], ["discord", "Discord", "messenger"], ["voice", "Голос Discord", "messenger"],
   ["roblox", "Roblox", "games"], ["faceit", "FACEIT", "games"], ["steam", "Steam", "games"],
   ["chatgpt", "ChatGPT", "ai"], ["cloudflare", "Сайты на Cloudflare", "web"],
 ];
-function demoServices(map, detail) {
-  return DEMO_SERVICES.map(([id, name, category]) => ({ id, name, category, state: map[id] || "unknown", fixable: ["youtube", "discord", "roblox", "faceit", "cloudflare"].includes(id), detail: (detail && detail[id]) || "" }));
-}
+const DEMO_EXTRA = [["spotify", "Spotify", "video"], ["signal", "Signal", "messenger"], ["github", "GitHub", "dev"], ["patreon", "Patreon", "web"]];
+const DEMO_FIXABLE = ["youtube", "discord", "voice", "roblox", "faceit", "cloudflare"];
 const DEMO_DETAIL = {
-  youtube: "www.youtube.com: обрыв после 18 КБ (замедление). i.ytimg.com: TLS завис.",
-  discord: "discord.com: TLS завис, блок по имени сайта. Обход должен помочь.",
+  youtube: "www.youtube.com: обрыв после 18 КБ (замедление). i.ytimg.com: соединение зависло.",
+  discord: "discord.com: соединение зависло на имени сайта. Обход должен помочь.",
+  voice: "Оценка по 12 пробным подключениям к голосовым серверам: ответили 4. Настоящий звонок может вести себя иначе.",
   instagram: "Соединение не устанавливается даже без имени сайта: адреса Meta заблокированы. Поможет только VPN.",
   x: "Адреса заблокированы. Поможет только VPN.",
   whatsapp: "Сообщения доходят, звонки заблокированы с августа 2025 года.",
   chatgpt: "OpenAI отвечает «страна не поддерживается»: это ограничение самого сервиса, обход его не снимает.",
   cloudflare: "Сайты на серверах Cloudflare замирают после 16 КБ. Обход это лечит.",
+  steam: "Магазин открылся за 0,4 с.",
+};
+const DEMO_LABEL = {
+  voice: { partial: "Подключается через раз (оценка)", fixed: "Стабильно (оценка)", testing: "Проверяю, около 2 минут" },
+};
+function demoServices(map, labels) {
+  return DEMO_SERVICES.map(([id, name, category]) => {
+    const st = map[id] || "unknown";
+    const label = (labels && labels[id]) || (DEMO_LABEL[id] && DEMO_LABEL[id][st]) || "";
+    return { id, name, category, state: st, fixable: DEMO_FIXABLE.includes(id), detail: DEMO_DETAIL[id] || "", label };
+  });
+}
+const DIAG = { youtube: "throttled", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "blocked", voice: "partial", roblox: "blocked", faceit: "unknown", steam: "works", chatgpt: "geo", cloudflare: "throttled" };
+const DEMO_REPORT = [
+  "EzPzDPI 0.2.0, Windows 11 23H2 (сборка 22631), x64",
+  "Как проверяли: напрямую через провайдера",
+  "Найдено: zapret (Flowseal) 1.9.2, служба, вариант general (ALT2), падала 3 раза за 7 дней",
+  "VPN: нет. Прокси: нет. Антивирус: Защитник Windows, AdGuard",
+  "",
+  "YouTube: замедлен (обрыв после 18 КБ)",
+  "Discord: заблокирован (соединение зависло на имени сайта)",
+  "Голос Discord: подключается через раз, 4 из 12 (оценка)",
+  "Instagram и Facebook: блокировка по адресу",
+  "ChatGPT: сервис сам не работает с Россией",
+  "FACEIT: не удалось проверить (сайт ограничил частоту запросов)",
+].join("\n");
+const FLOWSEAL_NOTICE = {
+  id: "dpi:flowseal", kind: "dpi", level: "warn",
+  title: "Уже установлен zapret (Flowseal), работает как служба",
+  text: "Папка C:\\Users\\…\\Desktop\\zapret-discord-youtube-1.9.2, вариант general (ALT2). Служба падала 3 раза за неделю и сама не перезапускается — вероятно, поэтому Discord отключает от голосового сервера.",
+  actions: [
+    { id: "check-without", label: "Проверить без него" },
+    { id: "disable-foreign", label: "Заменить на EzPzDPI", confirm: "Старый zapret будет отключён, но не удалён. Вернуть его можно одной кнопкой в Настройках." },
+  ],
 };
 const DEMOS = {
-  idle: () => ({ verdict: { title: "Проверим, что у\u00a0вас открывается", text: "EzPzDPI проверит 12 сервисов, это займёт полминуты. Пока вы не нажмёте «Починить», в системе ничего не меняется.", action: "Проверить" }, services: demoServices({}) }),
-  checking: () => ({ verdict: { title: "Проверяю", text: "YouTube, Discord и ещё 10 сервисов.", busy: true, action: "Остановить", calm: true }, services: demoServices(Object.fromEntries(DEMO_SERVICES.map(([id]) => [id, "testing"]))) }),
+  idle: () => ({ phase: "idle", verdict: { title: "Проверим, что у\u00a0вас открывается", text: "EzPzDPI проверит 13 сервисов, это займёт полминуты. Программа подключается к сайтам напрямую, как обычный браузер, и ничего не меняет, пока вы не нажмёте «Починить».", action: "Проверить" }, services: demoServices({}) }),
+  checking: () => ({ phase: "checking", verdict: { title: "Проверяю", text: "YouTube, Discord и ещё 11 сервисов. Голос Discord проверяется дольше, чтобы поймать обрывы.", busy: true, cancel_label: CANCEL_LABEL, second: "Пропустить проверку голоса" }, progress: { i: 5, n: 13, eta_sec: 95 }, provenance: "Напрямую через провайдера", services: demoServices({ youtube: "throttled", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", ...Object.fromEntries(["whatsapp", "discord", "voice", "roblox", "faceit", "steam", "chatgpt", "cloudflare"].map((id) => [id, "testing"])) }) }),
   diagnosed: () => ({
-    verdict: { title: "Не работают 7 из 12", text: "Обход починит YouTube, Discord, Roblox, FACEIT и сайты на Cloudflare. Instagram и X блокируют по адресу, для них нужен VPN. ChatGPT сам не работает с Россией.", action: "Починить", second: "Проверить снова" },
-    services: demoServices({ youtube: "throttled", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "blocked", roblox: "blocked", faceit: "blocked", steam: "works", chatgpt: "geo", cloudflare: "throttled" }, DEMO_DETAIL),
+    phase: "diagnosed",
+    verdict: { title: "Не работают 8 из 13", text: "Обход починит YouTube, Discord, Roblox и сайты на Cloudflare. Instagram и X блокируют по адресу, для них нужен VPN. ChatGPT сам не работает с Россией. FACEIT проверить не удалось.", action: "Починить", second: "Проверить снова" },
+    provenance: "Напрямую через провайдера", report: DEMO_REPORT,
+    notices: [{ id: "av", kind: "av", level: "info", title: "Включён AdGuard", text: "Он тоже пропускает трафик через себя. Если голос Discord будет пропадать, добавьте Discord в исключения сетевого фильтра AdGuard." }],
+    services: demoServices(DIAG),
   }),
   fixing: () => ({
-    verdict: { title: "Подбираю обход", text: "Проверено 9 из 25 вариантов, сейчас general (ALT8). Обычно хватает 1–4 минут.", action: "Остановить", calm: true, busy: true },
-    progress: { i: 9, n: 25 },
-    services: demoServices({ youtube: "fixed", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "testing", roblox: "testing", faceit: "testing", steam: "works", chatgpt: "geo", cloudflare: "fixed" }, DEMO_DETAIL),
+    phase: "fixing",
+    verdict: { title: "Подбираю обход", text: "Пробую варианты по очереди и проверяю каждый на ваших сервисах. Окно можно свернуть.", busy: true, cancel_label: CANCEL_LABEL },
+    progress: { i: 9, n: 25, eta_sec: 170 }, provenance: "С обходом EzPzDPI",
+    services: demoServices({ ...DIAG, youtube: "fixed", cloudflare: "fixed", discord: "testing", voice: "testing", roblox: "testing" }),
   }),
   fixed: () => ({
+    phase: "fixed",
     verdict: { title: "Починено 5 из 5", text: "Обход включён и будет запускаться вместе с Windows. Если Discord был открыт, закройте его через значок в трее и откройте снова.", action: "Проверить снова", calm: true, second: "Почему Instagram не работает" },
-    bypass: { on: true, strategy: "general (ALT3)", autostart: true },
-    services: demoServices({ youtube: "fixed", instagram: "ip_block", x: "ip_block", twitch: "works", telegram: "works", whatsapp: "partial", discord: "fixed", roblox: "fixed", faceit: "fixed", steam: "works", chatgpt: "geo", cloudflare: "fixed" }, DEMO_DETAIL),
+    bypass: { on: true, strategy: "general (ALT3)", autostart: true }, provenance: "С обходом EzPzDPI", report: DEMO_REPORT,
+    foreign_disabled: ["zapret (Flowseal)"], defender_excluded: true, secure_dns: { supported: true, active: true, provider: "Cloudflare" },
+    services: demoServices({ ...DIAG, youtube: "fixed", discord: "fixed", voice: "fixed", roblox: "fixed", faceit: "fixed", cloudflare: "fixed" }),
+  }),
+  foreign: () => ({
+    phase: "diagnosed",
+    verdict: { title: "У вас уже стоит zapret", text: "YouTube и Discord открываются через него, но голос Discord обрывается: 3 пропадания за 2 минуты (оценка). Проверьте без него или замените на EzPzDPI, старый zapret не удаляется.", action: "Починить", second: "Проверить снова" },
+    confirm_fix: "Чтобы подобрать обход, EzPzDPI остановит zapret (Flowseal) на время подбора. Если вы сейчас в голосовом канале, звонок прервётся на пару секунд. Если вариант найдётся, zapret (Flowseal) будет отключён (вернуть можно в настройках). Если нет, zapret (Flowseal) запустится обратно. Продолжить?",
+    confirm_replace: "EzPzDPI остановит zapret (Flowseal) и включит выбранный вариант. Если вариант включится, zapret (Flowseal) будет отключён (вернуть можно в настройках). Если нет, zapret (Flowseal) запустится обратно. Продолжить?",
+    provenance: "Через ваш текущий zapret", report: DEMO_REPORT,
+    notices: [
+      FLOWSEAL_NOTICE,
+      { id: "av", kind: "av", level: "info", title: "Включён AdGuard", text: "Он тоже пропускает трафик через себя. Если голос Discord пропадает, вероятно, мешает его сетевой фильтр: добавьте Discord в исключения AdGuard." },
+      { id: "leftovers", kind: "dpi", level: "info", title: "Остатки старого GoodbyeDPI", text: "Служба GoodbyeDPI осталась в системе, но её файлов больше нет.", actions: [{ id: "remove-leftovers", label: "Убрать остатки", confirm: "Удалить службу GoodbyeDPI, у которой больше нет файлов?" }] },
+    ],
+    services: demoServices({ ...DIAG, youtube: "works", discord: "works", voice: "partial", roblox: "works", cloudflare: "works", faceit: "works" }, { voice: "Подключается, потом обрывается (оценка)" }),
+  }),
+  uninstalled: () => ({
+    phase: "uninstalled", uninstalled: true,
+    verdict: { title: "EzPzDPI удалена", text: "Обход выключен, служба и ярлыки удалены, настройки сети вернулись как были. Прежний zapret (Flowseal) снова включён. Драйвер обхода выгрузится после перезагрузки." },
+    services: [],
   }),
 };
 function demoState(name) {
   const s = DEMOS[name] ? DEMOS[name]() : DEMOS.idle();
-  s.settings = s.settings || { autostart: true, heal: true, games: false, disabled: [] };
-  s.versions = { app: "0.2.0", flowseal: "1.10.4" };
-  s.strategies = [{ key: "zapret:general", name: "general" }, { key: "zapret:general (ALT)", name: "general (ALT)" }];
+  const all = [...DEMO_SERVICES, ...DEMO_EXTRA];
+  s.catalog = all.map(([id, nm, category], i) => ({ id, name: nm, category, default: i < DEMO_SERVICES.length }));
+  s.settings = s.settings || { autostart: true, heal: true, games: false, enabled: DEMO_SERVICES.map(([id]) => id) };
+  s.versions = { app: "0.2.0", flowseal: "1.10.4", goodbyedpi: "0.2.3rc3" };
+  s.strategies = ["general", "general (ALT)", "general (ALT2)", "general (ALT3)", "general (FAKE TLS AUTO)"].map((n) => ({ key: "zapret:" + n, name: n }));
   s.bypass = s.bypass || { on: false };
+  s.secure_dns = s.secure_dns || { supported: true, active: false, provider: "" };
+  s.defender_excluded = !!s.defender_excluded;
+  s.notices = s.notices || [];
   return s;
 }
 function demoCall(name) {
   const order = ["idle", "checking", "diagnosed", "fixing", "fixed"];
-  if (name === "ezpzMain") {
-    const cur = (location.hash.replace("#", "") || "idle");
-    const next = order[(order.indexOf(cur) + 1) % order.length];
-    location.hash = next;
+  if (name === "ezpzMain" || name === "ezpzCancel") {
+    const cur = demoHash().name;
+    location.hash = name === "ezpzCancel" ? "diagnosed" : order[(order.indexOf(cur) + 1) % order.length];
   }
+  if (name === "ezpzUninstall") location.hash = "uninstalled";
   return Promise.resolve(null);
 }
-function demoFromHash() { state = demoState(location.hash.replace("#", "")); render(); }
-if (typeof window.ezpzMain !== "function") {
-  window.addEventListener("hashchange", demoFromHash);
-  document.fonts.ready.then(demoFromHash);
+// "#fixed+settings" opens a panel too, so every surface can be screenshotted.
+function demoHash() {
+  const [n, extra] = location.hash.replace("#", "").split("+");
+  return { name: n || "idle", extra: extra || "" };
 }
+function demoFromHash() {
+  const { name, extra } = demoHash();
+  state = demoState(name);
+  render();
+  openSheet(extra.startsWith("settings"));
+  if (extra === "settings-end") $("sheet").scrollTop = $("sheet").scrollHeight;
+  if (extra === "report") openReport();
+  if (extra === "remove") openRemove();
+  if (extra === "notices") { showAllNotices = true; renderNotices(); }
+}
+
+document.fonts.ready.then(() => {
+  if (BRIDGE) { call("ezpzReady"); return; }
+  window.addEventListener("hashchange", demoFromHash);
+  demoFromHash();
+});
 </script>
 </body>
 </html>

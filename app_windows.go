@@ -25,8 +25,8 @@ type Config struct {
 	// Heal: re-check at logon and re-pick a strategy if the old one broke.
 	Heal  bool `json:"heal"`
 	Games bool `json:"games,omitempty"`
-	// Disabled are services the user does not want checked or fixed.
-	Disabled []string `json:"disabled,omitempty"`
+	// Toggles override the catalog default (true = check, false = skip).
+	Toggles map[string]bool `json:"toggles,omitempty"`
 	// Fixed are services that worked only with the bypass at the last fix.
 	Fixed []string `json:"fixed,omitempty"`
 	// ForeignDisabled are other tools' Windows services EzPzDPI disabled,
@@ -41,7 +41,10 @@ type Config struct {
 	ProxyBackup      *ProxyBackup      `json:"proxy_backup,omitempty"`
 	DefenderExcluded bool              `json:"defender_excluded,omitempty"`
 	// Installed: Start menu shortcut and "Apps" uninstall entry exist.
-	Installed     bool      `json:"installed,omitempty"`
+	Installed bool `json:"installed,omitempty"`
+	// Off: the user switched the bypass off; the logon check must not turn
+	// it back on.
+	Off           bool      `json:"off,omitempty"`
 	LastHeal      string    `json:"last_heal,omitempty"`
 	LastHealAt    time.Time `json:"last_heal_at,omitempty"`
 	ConfigVersion int       `json:"config_version"`
@@ -66,6 +69,9 @@ type ProxyBackup struct {
 	Server string    `json:"server"`
 	PAC    string    `json:"pac"`
 	At     time.Time `json:"at"`
+	// UserKey is the Internet Settings path under HKEY_USERS of the user
+	// whose proxy was changed ("" = the elevated account's HKCU).
+	UserKey string `json:"user_key,omitempty"`
 }
 
 // journal appends one system change to logs\journal.log (JSON lines):
@@ -114,11 +120,44 @@ func (a *App) extraListPath() string {
 }
 func (a *App) installedExe() string { return filepath.Join(a.dataDir, appName+".exe") }
 
+// Engines run under their own image names, so other tools' "kill all
+// winws.exe" helpers do not stop EzPzDPI, and our processes are easy to
+// tell apart from foreign ones.
+const (
+	ourWinws = "ezpz-winws.exe"
+	ourGdpi  = "ezpz-goodbyedpi.exe"
+)
+
+// ourEngineNames includes 0.1.x names so old engines are found and stopped.
+var ourEngineNames = []string{ourWinws, ourGdpi, "winws.exe", "goodbyedpi.exe"}
+
 func (a *App) engineExe(e Engine) string {
 	if e == EngineGDPI {
-		return filepath.Join(a.gdpiDir(), "goodbyedpi.exe")
+		return filepath.Join(a.gdpiDir(), ourGdpi)
 	}
-	return filepath.Join(a.zapretDir(), "bin", "winws.exe")
+	return filepath.Join(a.zapretDir(), "bin", ourWinws)
+}
+
+// ensureEngineCopies refreshes the renamed engine copies from the files the
+// payload or a Flowseal update installed.
+func (a *App) ensureEngineCopies() error {
+	pairs := [][2]string{
+		{filepath.Join(a.zapretDir(), "bin", "winws.exe"), a.engineExe(EngineZapret)},
+		{filepath.Join(a.gdpiDir(), "goodbyedpi.exe"), a.engineExe(EngineGDPI)},
+	}
+	for _, p := range pairs {
+		src, err := os.ReadFile(p[0])
+		if err != nil {
+			continue // the antivirus may have removed it; checkEngine explains
+		}
+		if cur, err := os.ReadFile(p[1]); err == nil && string(cur) == string(src) {
+			continue
+		}
+		if err := os.WriteFile(p[1], src, 0o755); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // logf appends a line to logs\app.log (rotated at 1 MB).
@@ -167,6 +206,9 @@ func (a *App) init() error {
 		return err
 	}
 	hardenDir(a.dataDir)
+	if err := a.ensureEngineCopies(); err != nil {
+		a.logf("engine copies: %v", err)
+	}
 	_ = a.writeExtraList()
 	a.loadStrategies()
 	if extracted {
@@ -206,9 +248,9 @@ func (a *App) ensurePayload(manageEngines bool) (bool, error) {
 	}
 	cur, curErr := readInstalledInfo(a.dataDir)
 	bats, _ := filepath.Glob(filepath.Join(a.zapretDir(), "strategies", "general*.bat"))
-	needZapret := curErr != nil || !fileExists(a.engineExe(EngineZapret)) || len(bats) == 0 ||
+	needZapret := curErr != nil || !fileExists(filepath.Join(a.zapretDir(), "bin", "winws.exe")) || len(bats) == 0 ||
 		versionLess(cur.Flowseal, emb.Flowseal)
-	needGdpi := curErr != nil || !fileExists(a.engineExe(EngineGDPI)) || cur.GoodbyeDPI != emb.GoodbyeDPI
+	needGdpi := curErr != nil || !fileExists(filepath.Join(a.gdpiDir(), "goodbyedpi.exe")) || cur.GoodbyeDPI != emb.GoodbyeDPI
 	a.payload = cur
 	if !needZapret && !needGdpi {
 		return false, nil
@@ -276,15 +318,16 @@ func (a *App) saveConfig() {
 	_ = os.WriteFile(filepath.Join(a.dataDir, "config.json"), data, 0o644)
 }
 
-// enabledServices are the catalog ids the user wants checked.
+// enabledServices are the catalog ids the user wants checked: catalog
+// defaults, overridden by the user's toggles.
 func (a *App) enabledServices() map[string]bool {
-	off := map[string]bool{}
-	for _, id := range a.cfg.Disabled {
-		off[id] = true
-	}
 	on := map[string]bool{}
 	for _, s := range catalog {
-		if !off[s.ID] {
+		want := s.Default
+		if v, ok := a.cfg.Toggles[s.ID]; ok {
+			want = v
+		}
+		if want {
 			on[s.ID] = true
 		}
 	}
@@ -339,7 +382,7 @@ func (a *App) state() string {
 	if serviceState(serviceName) == svcRunning {
 		return "service"
 	}
-	for _, p := range listProcs("winws.exe", "goodbyedpi.exe") {
+	for _, p := range listProcs(ourEngineNames...) {
 		if a.ownsPath(p.Path) {
 			return "session"
 		}
@@ -351,7 +394,7 @@ func (a *App) state() string {
 func (a *App) stopAll() {
 	a.killTrial()
 	_ = stopAndDeleteService(serviceName)
-	for _, p := range listProcs("winws.exe", "goodbyedpi.exe") {
+	for _, p := range listProcs(ourEngineNames...) {
 		if a.ownsPath(p.Path) {
 			if err := killPID(p.PID); err != nil {
 				a.logf("kill %s (%d): %v", p.Path, p.PID, err)
@@ -377,9 +420,9 @@ func (a *App) killTrial() {
 	}
 }
 
-// runTrial starts a strategy, lets WinDivert settle, runs the tester and
-// stops the engine again.
-func (a *App) runTrial(ctx context.Context, s Strategy, t *Tester) (Report, error) {
+// runTrial starts a strategy, lets WinDivert settle, runs the tester (and
+// extra checks such as the voice estimate) and stops the engine again.
+func (a *App) runTrial(ctx context.Context, s Strategy, t *Tester, extra func(context.Context) []ProbeResult) (Report, error) {
 	if a.lastEngine != "" && a.lastEngine != s.Engine {
 		_ = stopAndDeleteService("WinDivert") // the two engines ship different WinDivert builds
 	}
@@ -408,6 +451,9 @@ func (a *App) runTrial(ctx context.Context, s Strategy, t *Tester) (Report, erro
 		return Report{}, ctx.Err()
 	}
 	r := t.Run(ctx)
+	if extra != nil && ctx.Err() == nil {
+		r.Results = append(r.Results, extra(ctx)...)
+	}
 	select {
 	case <-done:
 		return r, engineFailure(lastLogLine(a.logPath()))
@@ -548,7 +594,7 @@ func (a *App) installSelf() error {
 
 // syncHealTask makes the logon task match the settings.
 func (a *App) syncHealTask() error {
-	if !a.cfg.Heal || a.cfg.Strategy == "" {
+	if !a.cfg.Heal || a.cfg.Strategy == "" || a.cfg.Off {
 		return deleteTask(healTaskName)
 	}
 	if err := a.installSelf(); err != nil {
@@ -580,25 +626,90 @@ func (a *App) update(ctx context.Context) (tag string, n int, err error) {
 	a.payload.Flowseal, a.payload.Source = tag, "github"
 	_ = writeInstalledInfo(a.dataDir, a.payload)
 	hardenDir(a.dataDir)
+	_ = a.ensureEngineCopies()
 	_ = a.writeExtraList()
 	a.loadStrategies()
 	_ = a.restore(prev)
 	return tag, n, nil
 }
 
-// uninstall removes our service, task and data. restoreForeign re-enables
-// other tools' services that EzPzDPI disabled.
-func (a *App) uninstall(restoreForeign bool) error {
-	a.stopAll()
-	_ = deleteTask(healTaskName)
-	if restoreForeign {
-		for name, start := range a.cfg.ForeignDisabled {
-			if err := setServiceStart(name, start, true); err != nil {
-				a.logf("restore %s: %v", name, err)
-			}
+// uninstall reverts every change EzPzDPI made (U01) and removes its files.
+// It returns the steps that failed, in plain Russian.
+func (a *App) uninstall(restoreForeignTools bool) []string {
+	var errs []string
+	step := func(what string, err error) {
+		if err != nil {
+			a.logf("uninstall %s: %v", what, err)
+			errs = append(errs, what+": "+err.Error())
 		}
 	}
-	return os.RemoveAll(a.dataDir)
+	a.stopAll()
+	step("задача автопроверки", deleteTask(healTaskName))
+	if a.cfg.DNSBackup != nil {
+		step("настройки DNS", revertSecureDNS(a))
+	}
+	if a.cfg.DefenderExcluded {
+		step("исключение Защитника", removeDefenderExclusion(a))
+	}
+	if restoreForeignTools {
+		step("прежний обход", restoreForeign(a))
+		step("файл hosts", restoreHosts(a))
+	}
+	// After the old tool is back, so a proxy it serves is seen alive; a dead
+	// proxy is left off instead of cutting the browser off.
+	if a.cfg.ProxyBackup != nil {
+		step("прокси", restoreProxy(a))
+	}
+	step("ярлык и запись в «Приложениях»", removeEntries(a))
+	if len(errs) > 0 {
+		a.saveConfig() // keep the backups so a second run can finish the job
+		return errs
+	}
+	kept, err := a.preserveBackups()
+	if err != nil {
+		a.saveConfig()
+		return []string{"резервные копии не удалось сохранить (" + err.Error() + "), поэтому папка " + a.dataDir + " оставлена"}
+	}
+	if kept != "" {
+		a.logf("backups kept in %s", kept)
+	}
+	scheduleRemoval(a.dataDir)
+	return nil
+}
+
+// preserveBackups copies the backup folder (hosts copies, moved autostart
+// entries of other tools, service exports) to the public Documents folder
+// before the data folder is removed, so nothing the user had is lost.
+func (a *App) preserveBackups() (string, error) {
+	src := filepath.Join(a.dataDir, "backup")
+	if entries, err := os.ReadDir(src); err != nil || len(entries) == 0 {
+		return "", nil
+	}
+	pub := os.Getenv("PUBLIC")
+	if pub == "" {
+		pub = `C:\Users\Public`
+	}
+	dst := filepath.Join(pub, "Documents", "EzPzDPI backup "+time.Now().Format("2006-01-02 15-04"))
+	err := filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+	if err != nil {
+		a.logf("preserve backups: %v", err)
+		return "", err
+	}
+	return dst, nil
 }
 
 // runSelftest needs no admin rights: it unpacks the payload, validates every
@@ -614,6 +725,10 @@ func runSelftest(dataDir string) int {
 	}
 	if _, err := a.ensurePayload(false); err != nil {
 		say("payload: %v", err)
+		return 1
+	}
+	if err := a.ensureEngineCopies(); err != nil {
+		say("engine copies: %v", err)
 		return 1
 	}
 	_ = a.writeExtraList()

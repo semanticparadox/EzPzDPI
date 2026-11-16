@@ -41,6 +41,9 @@ type Diagnosis struct {
 	ID     string   `json:"id"`
 	State  SvcState `json:"state"`
 	Detail string   `json:"detail"`
+	// Reachable: every required probe got through at the network level
+	// (the service may still refuse Russia or need secure DNS).
+	Reachable bool `json:"-"`
 }
 
 // probe classes
@@ -74,9 +77,12 @@ func isGeo(svc *Service, p ProbeResult) bool {
 	return false
 }
 
-func classifyProbe(svc *Service, p ProbeResult) string {
+func classifyProbe(svc *Service, p ProbeResult, linkSlow bool) string {
 	if p.Status > 0 && isGeo(svc, p) {
 		return pcGeo
+	}
+	if p.OK && p.Slow && !linkSlow {
+		return pcThrottle // this site is slow while Russian sites are fast
 	}
 	if p.OK {
 		return pcOK
@@ -119,7 +125,7 @@ func Diagnose(svc *Service, r Report) Diagnosis {
 		if p.DNSSpoofed {
 			dnsSpoof = true
 		}
-		c := classifyProbe(svc, p)
+		c := classifyProbe(svc, p, r.LinkSlow())
 		if !p.Optional {
 			required++
 		}
@@ -140,6 +146,7 @@ func Diagnose(svc *Service, r Report) Diagnosis {
 	if svc.AnyOK && okCount > 0 && len(reqFail) > 0 {
 		optFail, reqFail, classes = append(optFail, reqFail...), nil, map[string]int{}
 	}
+	d.Reachable = required > 0 && len(reqFail) == 0
 	switch {
 	case required == 0:
 		d.State = StUnknown
@@ -157,6 +164,11 @@ func Diagnose(svc *Service, r Report) Diagnosis {
 		d.State, d.Detail = StBlocked, failLine(reqFail)+msgName
 	case classes[pcThrottle] > 0:
 		d.State, d.Detail = StThrottled, failLine(reqFail)+msgThrottle
+		for _, p := range reqFail {
+			if p.OK && p.Slow {
+				d.Detail = joinSentences(d.Detail, fmt.Sprintf("%s скачивается очень медленно (%d КБ за %d с), а российские сайты быстро.", p.Host, p.Bytes>>10, int(p.Took.Seconds())))
+			}
+		}
 	case classes[pcDNS] > 0 && classes[pcIP] == 0:
 		d.State, d.Detail = StDNS, failLine(reqFail)+msgStub
 	default:
@@ -164,6 +176,9 @@ func Diagnose(svc *Service, r Report) Diagnosis {
 	}
 	if dnsSpoof && (d.State == StBlocked || d.State == StThrottled || d.State == StIPBlock) {
 		d.Detail += msgDNSAlso
+	}
+	if pl := partsLine(svc, r); pl != "" && d.State != StWorks && d.State != StGeo {
+		d.Detail = joinSentences(pl, d.Detail)
 	}
 	if svc.Known != "" && (d.State == StWorks || d.State == StPartial) {
 		d.State = StPartial
@@ -196,9 +211,46 @@ func failLine(ps []ProbeResult) string {
 			parts = append(parts, fmt.Sprintf("и ещё %d", len(ps)-2))
 			break
 		}
-		parts = append(parts, p.Host+": "+p.Err)
+		what := p.Host
+		if p.Label != "" {
+			what = p.Label + " (" + p.Host + ")"
+		}
+		msg := p.Err
+		if msg == "" && p.Slow {
+			msg = "очень медленно"
+		}
+		parts = append(parts, what+": "+msg)
 	}
 	return strings.Join(parts, "; ")
+}
+
+// partsLine names working and broken parts: "Сайт открывается, видео — нет."
+func partsLine(svc *Service, r Report) string {
+	var ok, bad []string
+	seen := map[string]bool{}
+	for _, p := range r.Results {
+		if p.Service != svc.ID || p.Label == "" || seen[p.Label] {
+			continue
+		}
+		seen[p.Label] = true
+		if p.OK {
+			ok = append(ok, p.Label)
+		} else {
+			bad = append(bad, p.Label)
+		}
+	}
+	if len(ok) == 0 || len(bad) == 0 {
+		return ""
+	}
+	return upperFirst(strings.Join(ok, ", ")) + " открывается, " + strings.Join(bad, ", ") + " — нет."
+}
+
+func upperFirst(s string) string {
+	r := []rune(s)
+	if len(r) == 0 {
+		return s
+	}
+	return strings.ToUpper(string(r[0])) + string(r[1:])
 }
 
 // TrialScore rates a strategy against the services that need fixing and

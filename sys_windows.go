@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	"unicode/utf16"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -25,13 +26,34 @@ var (
 	kernel32          = windows.NewLazySystemDLL("kernel32.dll")
 	procAttachConsole = kernel32.NewProc("AttachConsole")
 	procAllocConsole  = kernel32.NewProc("AllocConsole")
+	procFreeConsole   = kernel32.NewProc("FreeConsole")
 	procGetConsoleWnd = kernel32.NewProc("GetConsoleWindow")
 )
 
 // setupConsole gives this GUI-subsystem exe a console for command-line use:
 // the parent's console when started from cmd/PowerShell, else a new one.
 // It returns true when a new console window was created.
-func setupConsole(title string) (fresh bool) {
+func setupConsole(title string) (fresh bool) { return attachConsole(title, false) }
+
+// attachConsole: own=true always opens a separate console window (the
+// interactive menu must not share the parent shell, which does not wait
+// for a GUI-subsystem program and would read the same input).
+func attachConsole(title string, own bool) (fresh bool) {
+	if own {
+		procFreeConsole.Call()
+		procAllocConsole.Call()
+		reopenStd()
+		initConsole(title)
+		return true
+	}
+	// Output already redirected to a pipe or file (scripts, WSL): keep it
+	// and do not pop up a console window.
+	if h, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE); err == nil && h != 0 && h != windows.InvalidHandle {
+		if t, _ := windows.GetFileType(h); t == windows.FILE_TYPE_PIPE || t == windows.FILE_TYPE_DISK {
+			useColor = false
+			return false
+		}
+	}
 	const attachParent = ^uintptr(0) // ATTACH_PARENT_PROCESS
 	if r, _, _ := procAttachConsole.Call(attachParent); r == 0 {
 		procAllocConsole.Call()
@@ -52,17 +74,40 @@ func reopenStd() {
 	}
 }
 
+var (
+	procGetConsoleOutputCP = kernel32.NewProc("GetConsoleOutputCP")
+	procGetConsoleCP       = kernel32.NewProc("GetConsoleCP")
+	savedConsole           *struct{ outCP, inCP, mode uint32 }
+)
+
 func initConsole(title string) {
-	_ = windows.SetConsoleOutputCP(65001)
-	_ = windows.SetConsoleCP(65001)
 	h := windows.Handle(os.Stdout.Fd())
 	var mode uint32
-	if windows.GetConsoleMode(h, &mode) != nil ||
-		windows.SetConsoleMode(h, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING) != nil {
+	haveMode := windows.GetConsoleMode(h, &mode) == nil
+	if savedConsole == nil && haveMode {
+		// Remember the console's settings: when attached to the user's
+		// cmd/PowerShell they must get them back on exit.
+		out, _, _ := procGetConsoleOutputCP.Call()
+		in, _, _ := procGetConsoleCP.Call()
+		savedConsole = &struct{ outCP, inCP, mode uint32 }{uint32(out), uint32(in), mode}
+	}
+	_ = windows.SetConsoleOutputCP(65001)
+	_ = windows.SetConsoleCP(65001)
+	if !haveMode || windows.SetConsoleMode(h, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING) != nil {
 		useColor = false
 		return
 	}
 	os.Stdout.WriteString("\x1b]0;" + title + "\x07")
+}
+
+// restoreConsole puts back the code pages and mode initConsole changed.
+func restoreConsole() {
+	if savedConsole == nil {
+		return
+	}
+	_ = windows.SetConsoleOutputCP(savedConsole.outCP)
+	_ = windows.SetConsoleCP(savedConsole.inCP)
+	_ = windows.SetConsoleMode(windows.Handle(os.Stdout.Fd()), savedConsole.mode)
 }
 
 // messageBox shows a native dialog; used when the window cannot be opened.
@@ -73,16 +118,113 @@ func messageBox(text string, flags uint32) int32 {
 	return r
 }
 
+// scheduleRemoval deletes dir after this process exits; the running exe
+// may live inside it (Start menu copy), so it cannot delete itself now.
+// Everything else is removed immediately; a hidden PowerShell waits for our
+// PID to exit, then removes the folder. As a last resort the exe is marked
+// for deletion at the next reboot.
+func scheduleRemoval(dir string) {
+	self, _ := os.Executable()
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		p := filepath.Join(dir, e.Name())
+		if !strings.EqualFold(p, self) {
+			_ = os.RemoveAll(p)
+		}
+	}
+	if strings.HasPrefix(strings.ToLower(self), strings.ToLower(dir)+`\`) {
+		if p, err := windows.UTF16PtrFromString(self); err == nil {
+			_ = windows.MoveFileEx(p, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT)
+		}
+	}
+	// dir is our fixed ASCII data path and the PID is a number: nothing in
+	// the script comes from user input.
+	if p, err := windows.UTF16PtrFromString(dir); err == nil {
+		_ = windows.MoveFileEx(p, nil, windows.MOVEFILE_DELAY_UNTIL_REBOOT) // removed at reboot once empty
+	}
+	script := fmt.Sprintf("Wait-Process -Id %d -ErrorAction SilentlyContinue; Remove-Item -LiteralPath '%s' -Recurse -Force -ErrorAction SilentlyContinue",
+		os.Getpid(), strings.ReplaceAll(dir, "'", "''"))
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script)
+	cmd.Dir = os.Getenv("SystemRoot")                                                                    // not inside the folder being removed
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow | 0x00000008} // DETACHED_PROCESS
+	_ = cmd.Start()
+}
+
+// windowsVersion returns "10.0.26200" style text for reports.
+func windowsVersion() string {
+	v := windows.RtlGetVersion()
+	return fmt.Sprintf("%d.%d.%d", v.MajorVersion, v.MinorVersion, v.BuildNumber)
+}
+
 const healTaskName = `EzPzDPI\Heal`
 
-// createLogonTask registers a task that runs exe with args at every logon,
-// elevated, a minute after the user signs in.
+// createLogonTask registers a task that runs exe with args a minute after
+// the current user signs in, elevated, also on battery power (the default
+// schtasks settings skip laptops on battery).
 func createLogonTask(name, exe string, args ...string) error {
-	tr := syscall.EscapeArg(exe)
-	for _, a := range args {
-		tr += " " + syscall.EscapeArg(a)
+	tu, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		return err
 	}
-	return runHidden("schtasks.exe", "/Create", "/F", "/TN", name, "/SC", "ONLOGON", "/DELAY", "0001:00", "/RL", "HIGHEST", "/TR", tr)
+	xml := logonTaskXML(tu.User.Sid.String(), exe, args)
+	f, err := os.CreateTemp("", "ezpzdpi-task-*.xml")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(encodeUTF16LE(xml)); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+	return runHidden("schtasks.exe", "/Create", "/F", "/TN", name, "/XML", f.Name())
+}
+
+// encodeUTF16LE encodes s as UTF-16 LE with a BOM, the encoding schtasks expects.
+func encodeUTF16LE(s string) []byte {
+	u := utf16.Encode([]rune(s))
+	buf := make([]byte, 2+2*len(u))
+	buf[0], buf[1] = 0xFF, 0xFE
+	for i, c := range u {
+		buf[2+2*i], buf[3+2*i] = byte(c), byte(c>>8)
+	}
+	return buf
+}
+
+// logonTaskXML builds the Task Scheduler 1.2 definition, elements in the
+// schema's order.
+func logonTaskXML(sid, exe string, args []string) string {
+	var argStr []string
+	for _, a := range args {
+		argStr = append(argStr, syscall.EscapeArg(a))
+	}
+	xml := `<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>EzPzDPI: проверка обхода после входа в Windows</Description></RegistrationInfo>
+  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>` + sid + `</UserId><Delay>PT1M</Delay></LogonTrigger></Triggers>
+  <Principals><Principal id="Author"><UserId>` + sid + `</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context="Author"><Exec><Command>` + xmlEscape(exe) + `</Command><Arguments>` + xmlEscape(strings.Join(argStr, " ")) + `</Arguments></Exec></Actions>
+</Task>`
+	return xml
+}
+
+func xmlEscape(s string) string {
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;", "'", "&apos;").Replace(s)
 }
 
 func deleteTask(name string) error {
@@ -217,8 +359,10 @@ func relaunchElevated(args []string) error {
 }
 
 func defaultDataDir() string {
-	base := os.Getenv("ProgramData")
-	if base == "" {
+	// The known-folder API, not %ProgramData%: environment variables of an
+	// elevated process can be influenced by the user.
+	base, err := windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
+	if err != nil || base == "" {
 		base = `C:\ProgramData`
 	}
 	return filepath.Join(base, appName)
@@ -226,7 +370,7 @@ func defaultDataDir() string {
 
 // dataDirSDDL: full control for SYSTEM and Administrators, read+execute for
 // Users, no inheritance from C:\ProgramData (where Users may create files).
-const dataDirSDDL = "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)"
+const dataDirSDDL = "O:BAD:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)"
 
 // secureDataDir guarantees the data dir is a real folder owned by
 // Administrators, SYSTEM or the current admin user before anything in it is
@@ -257,9 +401,19 @@ func secureDataDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := windows.CreateDirectory(p, sa); err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
+	err = windows.CreateDirectory(p, sa)
+	if errors.Is(err, windows.ERROR_INVALID_OWNER) {
+		// Some tokens cannot assign the Administrators group as owner at
+		// creation; hardenDir sets it right after.
+		if sd2, err2 := windows.SecurityDescriptorFromString(dataDirSDDL[len("O:BA"):]); err2 == nil {
+			sa.SecurityDescriptor = sd2
+			err = windows.CreateDirectory(p, sa)
+		}
+	}
+	if err != nil && !errors.Is(err, windows.ERROR_ALREADY_EXISTS) {
 		return err
 	}
+	hardenDir(dir)
 	return nil
 }
 
@@ -272,11 +426,9 @@ func trustedOwner(path string) bool {
 	if err != nil || owner == nil {
 		return false
 	}
-	if owner.IsWellKnown(windows.WinBuiltinAdministratorsSid) || owner.IsWellKnown(windows.WinLocalSystemSid) {
-		return true
-	}
-	tu, err := windows.GetCurrentProcessToken().GetTokenUser()
-	return err == nil && windows.EqualSid(owner, tu.User.Sid)
+	// Only Administrators or SYSTEM: a folder owned by any user account
+	// (even this one, unelevated) may hold files planted for the service.
+	return owner.IsWellKnown(windows.WinBuiltinAdministratorsSid) || owner.IsWellKnown(windows.WinLocalSystemSid)
 }
 
 // enableDebugPrivilege lets an elevated admin terminate LocalSystem
@@ -520,9 +672,10 @@ func installService(name, display, desc, exe string, args []string) error {
 	var s *mgr.Service
 	for i := 0; i < 40; i++ {
 		s, err = m.CreateService(name, exe, mgr.Config{
-			StartType:   mgr.StartAutomatic,
-			DisplayName: display,
-			Description: desc,
+			StartType:        mgr.StartAutomatic,
+			DelayedAutoStart: true, // start after the network stack is up
+			DisplayName:      display,
+			Description:      desc,
 		}, args...)
 		if !errors.Is(err, windows.ERROR_SERVICE_MARKED_FOR_DELETE) {
 			break
@@ -533,9 +686,12 @@ func installService(name, display, desc, exe string, args []string) error {
 		return err
 	}
 	defer s.Close()
+	// Restart three times with growing delays, then stop: an engine that
+	// keeps crashing must not loop forever. Counters reset after a day.
 	_ = s.SetRecoveryActions([]mgr.RecoveryAction{
 		{Type: mgr.ServiceRestart, Delay: 5 * time.Second},
 		{Type: mgr.ServiceRestart, Delay: 30 * time.Second},
+		{Type: mgr.ServiceRestart, Delay: 2 * time.Minute},
 		{Type: mgr.NoAction},
 	}, 24*60*60)
 	return s.Start()

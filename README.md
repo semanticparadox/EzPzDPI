@@ -3,8 +3,8 @@
 </p>
 
 <p align="center">
-  <b>Обход блокировок YouTube и Discord на Windows без ручного перебора bat-файлов.</b><br>
-  Один portable-файл сам проверяет стратегии zapret и GoodbyeDPI у вашего провайдера и включает рабочую.
+  <b>Проверка и обход блокировок на Windows в одно нажатие.</b><br>
+  Открыли программу, нажали «Проверить» и увидели, что именно не работает и почему. Нажали «Починить», и EzPzDPI сам подобрал обход под вашего провайдера.
 </p>
 
 <p align="center">
@@ -18,83 +18,83 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/semanticparadox/EzPzDPI?label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F" alt="Лицензия"></a>
 </p>
 
+<p align="center">
+  <img src="docs/preview/diag-light.png" width="720" alt="Окно EzPzDPI: диагноз по сервисам (демонстрационные данные)">
+  <br><sub>Диагноз с блокировками: демонстрационные данные</sub>
+</p>
+<p align="center">
+  <img src="docs/preview/real-window-dark.png" width="720" alt="Настоящее окно EzPzDPI на Windows 11 в тёмной теме">
+  <br><sub>Настоящее окно на Windows 11 в сети без блокировок</sub>
+</p>
+
 ---
 
-## Зачем это
+## Что умеет
 
-Обычный путь с [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube): скачать архив, по очереди запускать `general.bat`, `general (ALT).bat`, …, `general (ALT13).bat` и каждый раз вручную проверять, открылись ли YouTube и Discord. У каждого провайдера работает своя стратегия, а после очередного обновления блокировок поиск начинается заново.
-
-EzPzDPI делает этот перебор сам. Он запускает стратегии по одной, проверяет, что YouTube и Discord действительно загружаются, и включает лучшую. На всё уходит от одной до четырёх минут.
+- **Честный диагноз по каждому сервису.** YouTube, Discord, Telegram, WhatsApp, Instagram, X, Twitch, TikTok, Roblox, Steam, FACEIT, ChatGPT, звонки, сайты на Cloudflare и зарубежном хостинге. В настройках включаются ещё полтора десятка. Для каждого видно, что происходит:
+  - работает;
+  - заблокирован, но обход поможет;
+  - замедлен (страница замирает после 16–20 КБ);
+  - заблокирован по адресу, нужен VPN;
+  - сервис сам не работает с Россией;
+  - провайдер подменяет адрес (DNS).
+- **Подбор обхода.** EzPzDPI по очереди пробует варианты zapret (набор Flowseal) и GoodbyeDPI. Каждый вариант проверяется реальным скачиванием, а не только «пинганулось». Включается лучший, и только если обычные российские сайты при нём продолжают работать.
+- **Уже стоит другой обход?** EzPzDPI его найдёт (zapret от Flowseal, zapret-win-bundle, GoodbyeDPI, ByeDPI, Zapret GUI). Покажет, какой вариант в нём выбран, падает ли он и не запущено ли две программы сразу: это частая причина «то работает, то нет». Можно проверить его работу, сравнить без него или заменить. Прежний обход не удаляется и возвращается одной кнопкой.
+- **Голос и звонки.** Оценка UDP так, как его использует голос: серия новых соединений и минута наблюдения. Пинг роутера показывает, рвётся ли связь ещё в Wi-Fi.
+- **Защищённый DNS.** YouTube, WhatsApp и часть других сайтов в 2026 году удалены из российского DNS. Без защищённого DNS их не откроет никакой обход. В Windows 11 EzPzDPI включает его одной кнопкой и так же возвращает обратно.
+- **Сам следит.** При каждом входе в Windows EzPzDPI тихо проверяет, что починенные сервисы работают. Если провайдер что-то поменял, программа подберёт новый вариант.
+- **Ничего не ломает молча.** Все изменения в системе делаются только после нажатия кнопки, записываются в журнал и откатываются. Удаление возвращает всё как было: DNS, прокси, прежний обход.
 
 ## Установка
 
-1. Скачайте [**EzPzDPI.exe**](https://github.com/semanticparadox/EzPzDPI/releases/latest/download/EzPzDPI.exe). Установка не нужна: это один файл.
+1. Скачайте [**EzPzDPI.exe**](https://github.com/semanticparadox/EzPzDPI/releases/latest/download/EzPzDPI.exe). Это один файл, установка не нужна.
 2. Запустите его. Windows попросит права администратора: без них драйвер перехвата трафика WinDivert не запустится.
 3. Если появится окно «Система Windows защитила ваш компьютер», нажмите «Подробнее», затем «Выполнить в любом случае». Файл не подписан платным сертификатом, поэтому SmartScreen его не знает.
-4. В меню нажмите **1** («Автоподбор и включение»).
-5. Когда подбор закончится, выберите «Включить и запускать вместе с Windows». После этого окно можно закрыть.
+4. Нажмите **«Проверить»**, а затем **«Починить»**.
 
-Если Discord был открыт, полностью закройте его через значок в трее и запустите снова.
+После починки EzPzDPI копирует себя в `C:\ProgramData\EzPzDPI` и появляется в меню «Пуск». Скачанный файл можно удалить.
 
-## Как это выглядит
+## Что важно знать
 
-```
-  EzPzDPI 0.1.0  обход блокировок YouTube и Discord
-  Стратегии: Flowseal 1.10.4 (25 шт.) + GoodbyeDPI
-  Обход: выключен
+- Обход работает только для этого компьютера. Телефон, телевизор и приставка в той же сети его не получают.
+- Полностью закройте браузер и Discord (в трее «Выйти») после включения обхода: старые соединения идут по-старому.
+- Если включён VPN, проверка покажет VPN, а не провайдера. Перед проверкой его стоит выключить.
+- На мобильном интернете во время ограничений действуют «белые списки». EzPzDPI это распознает и честно скажет, что обход там не поможет.
+- Голос Discord и звонки нельзя проверить без реального звонка. Строка «Звонки и голос» показывает оценку, после включения позвоните сами.
+- ChatGPT, Claude, Gemini, Spotify и Docker Hub сами не работают с Россией. Обход блокировок этого не меняет, и EzPzDPI так и пишет.
 
-  1. Автоподбор и включение (рекомендуется)
-  2. Включить сохранённую стратегию
-  3. Выбрать стратегию вручную
-  4. Проверить, открываются ли YouTube и Discord
-  5. Выключить обход
-  6. Полный подбор (проверить все стратегии и выбрать самую быструю)
-  7. Обновить стратегии с GitHub (Flowseal)
-  8. Удалить всё (службу и рабочие файлы)
-  0. Выход
-```
+## Если что-то не так
 
-## Как это работает
-
-- **Что внутри.** `winws.exe` из [zapret](https://github.com/bol-van/zapret), 22 стратегии из [zapret-discord-youtube](https://github.com/Flowseal/zapret-discord-youtube) 1.10.4 вместе с их списками доменов и fake-пакетами, плюс три пресета [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) 0.2.3rc3 как запасной вариант.
-- **Куда распаковывается.** В `C:\ProgramData\EzPzDPI`. Путь без кириллицы и пробелов (winws с ними работает плохо), запись в папку разрешена только администраторам: из неё запускается служба.
-- **Как проверяется стратегия.** EzPzDPI запускает её и открывает `www.youtube.com`, `i.ytimg.com`, `redirector.googlevideo.com`, `discord.com`, `gateway.discord.gg`, `cdn.discordapp.com` и `updates.discord.com`. Соединение устанавливается с TLS-отпечатком Chrome, поэтому DPI провайдера видит то же, что при работе браузера. Проверка считается пройденной, только если страница реально скачалась: с YouTube не меньше 128 КБ, с Discord не меньше 64 КБ. Так ловится не только полная блокировка, но и замедление, и «заморозка» соединения после 16–20 КБ.
-- **Выбор.** Быстрый подбор останавливается на первой стратегии, которая прошла все проверки два раза подряд. Полный подбор проверяет все стратегии и берёт самую быструю из подтверждённых.
-- **Включение.** Стратегия запускается как служба Windows `EzPzDPI` с автозапуском и перезапуском при сбое, или только до перезагрузки.
-- **Обновления.** Пункт 7 скачивает последний релиз Flowseal с GitHub и подхватывает новые стратегии. Ваши списки `list-general-user.txt` и `list-exclude-user.txt` при этом не трогаются.
-- **Другие обходы.** Если уже запущены zapret, GoodbyeDPI или их службы, EzPzDPI предложит их остановить: две программы на WinDivert одновременно мешают друг другу.
-
-## Свои сайты
-
-Добавьте домены по одному на строку в `C:\ProgramData\EzPzDPI\zapret\lists\list-general-user.txt` (файл открывается от имени администратора), затем снова включите стратегию через пункт 2.
+- **Антивирус удалил файлы.** WinDivert и winws часто помечаются как HackTool или RiskWare: это драйвер перехвата сетевых пакетов, и антивирусы реагируют на сам класс программ. EzPzDPI заметит пропажу файлов и предложит добавить свою папку в исключения Защитника Windows. Для других антивирусов добавьте `C:\ProgramData\EzPzDPI` в исключения вручную.
+- **Kaspersky, ESET, AdGuard и похожие** проверяют защищённые соединения и могут мешать обходу. AdGuard, по сообщениям пользователей, ломает голос Discord. EzPzDPI покажет, если найдёт их.
+- **«Скопировать отчёт».** Если нужно спросить совета на форуме или в Issues, кнопка копирует диагноз простым текстом. В отчёте нет IP-адресов и аккаунтов.
+- Журнал: `C:\ProgramData\EzPzDPI\logs`.
 
 ## Командная строка
 
 ```
-EzPzDPI.exe -auto    подобрать стратегию и включить её службой
-EzPzDPI.exe -run     включить сохранённую стратегию
-EzPzDPI.exe -stop    выключить обход
-EzPzDPI.exe -check   проверить, открываются ли YouTube и Discord
+start /wait EzPzDPI.exe -check     проверить, что открывается
+start /wait EzPzDPI.exe -fix       подобрать вариант и включить обход
+start /wait EzPzDPI.exe -stop      выключить обход
+start /wait EzPzDPI.exe -run       включить сохранённый вариант
+EzPzDPI.exe -console               текстовый режим без окна
 ```
 
-## Если не работает
+EzPzDPI — оконная программа, поэтому cmd не ждёт её завершения сам: используйте `start /wait`, чтобы получить код выхода в `%ERRORLEVEL%`.
 
-- **Антивирус удалил файлы.** WinDivert и winws часто помечаются как HackTool или RiskWare: это драйвер перехвата сетевых пакетов, и антивирусы реагируют на сам класс программ. Добавьте `C:\ProgramData\EzPzDPI` в исключения и запустите EzPzDPI снова.
-- **Включён VPN или прокси.** Выключите их на время подбора.
-- **Провайдер подменяет DNS.** EzPzDPI сообщит об этом при проверке. Включите «Безопасный DNS» в браузере: Chrome, Edge или Яндекс Браузер → Настройки → Конфиденциальность → Использовать безопасный DNS → Cloudflare или Google.
-- **YouTube в Chrome всё равно тормозит.** Откройте `chrome://flags/#enable-quic`, выберите Disabled и перезапустите браузер.
-- **Голосовые каналы Discord.** Стратегии включают обход для UDP, но автопроверка их не тестирует. Если голос не подключается, попробуйте соседнюю стратегию через пункт 3.
-- **Ни одна стратегия не помогла.** Обновите стратегии (пункт 7) и повторите подбор. Если и это не помогло, провайдер блокирует по IP-адресам, и тогда поможет только VPN.
+## Конфиденциальность и безопасность
 
-Лог последнего запуска движка: `C:\ProgramData\EzPzDPI\logs\engine.log`.
-
-## Удаление
-
-Пункт 8 в меню удаляет службу и папку `C:\ProgramData\EzPzDPI`. После этого удалите сам `EzPzDPI.exe`.
+- EzPzDPI бесплатна. Она никогда не просит деньги, пароли, номер телефона или вход в Госуслуги.
+- Проверки подключаются к сайтам напрямую, как браузер. Авторам ничего не отправляется, телеметрии нет.
+- Программа не VPN и не скрывает, кто вы. Она меняет только то, как ваш компьютер отправляет первые пакеты соединения, чтобы фильтр провайдера их не распознал.
+- Рабочая папка `C:\ProgramData\EzPzDPI` доступна для записи только администраторам, потому что из неё работает системная служба.
+- Сверьте SHA-256 скачанного файла с файлом `EzPzDPI.exe.sha256` в релизе.
 
 ## Статус
 
-Это первая версия. Сборка, разбор всех стратегий (`winws --dry-run`) и сетевые проверки протестированы на Windows 11. Работа у конкретных российских провайдеров зависит от их оборудования: напишите в [Issues](https://github.com/semanticparadox/EzPzDPI/issues), какой у вас провайдер и какая стратегия подобралась.
+Версия 0.2. Сборка, разбор всех вариантов обхода (`winws --dry-run`), сетевые проверки и окно протестированы на Windows 11 без блокировок. Работа у конкретных российских провайдеров зависит от их оборудования и меняется со временем. Пожалуйста, напишите в [Issues](https://github.com/semanticparadox/EzPzDPI/issues), какой у вас провайдер, что показал диагноз и что подобралось. Кнопка «Скопировать отчёт» соберёт это за вас.
+
+Список сервисов и правила диагноза основаны на исследовании, проверенном по первоисточникам 16 ноября 2026 года: [docs/research](docs/research).
 
 ## Сборка из исходников
 
@@ -104,14 +104,14 @@ EzPzDPI.exe -check   проверить, открываются ли YouTube и 
 scripts/build.sh
 ```
 
-Скрипт скачивает закреплённые релизы Flowseal и GoodbyeDPI, сверяет их SHA-256, собирает архив и кросс-компилирует `dist/EzPzDPI.exe`.
+Скрипт скачивает закреплённые релизы Flowseal и GoodbyeDPI, сверяет их SHA-256, собирает архив, иконку и манифест, прогоняет тесты и кросс-компилирует `dist/EzPzDPI.exe`.
 
 ## Благодарности и лицензии
 
-EzPzDPI только автоматизирует выбор. Сам обход DPI делают [zapret](https://github.com/bol-van/zapret) (bol-van), стратегии и списки поддерживает [Flowseal](https://github.com/Flowseal/zapret-discord-youtube), запасной движок — [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS), перехват пакетов — [WinDivert](https://github.com/basil00/WinDivert) (basil00). Лицензии компонентов перечислены в [THIRD-PARTY.md](THIRD-PARTY.md). Код EzPzDPI распространяется по лицензии [MIT](LICENSE).
+EzPzDPI только диагностирует и автоматизирует выбор. Сам обход DPI делают [zapret](https://github.com/bol-van/zapret) (bol-van), стратегии и списки поддерживает [Flowseal](https://github.com/Flowseal/zapret-discord-youtube), запасной движок — [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (ValdikSS), перехват пакетов — [WinDivert](https://github.com/basil00/WinDivert) (basil00). Окно работает на Microsoft WebView2. Шрифты — Onest и Unbounded (SIL OFL). Лицензии компонентов перечислены в [THIRD-PARTY.md](THIRD-PARTY.md). Код EzPzDPI распространяется по лицензии [MIT](LICENSE).
 
 ---
 
 ### English
 
-EzPzDPI is a single portable Windows executable that picks a working DPI-bypass strategy for YouTube and Discord automatically. It bundles zapret's `winws.exe` with the Flowseal strategy set and GoodbyeDPI as a fallback, runs each strategy, verifies that YouTube and Discord actually load (Chrome TLS fingerprint, minimum download size to catch throttling and the 16–20 KB freeze), and installs the best one as an auto-start Windows service. Download the latest `EzPzDPI.exe` from [Releases](https://github.com/semanticparadox/EzPzDPI/releases/latest), run it as administrator and press 1.
+EzPzDPI is a single portable Windows app for people in Russia. Press "Проверить" and it shows, per service, whether a site works, is blocked by name (fixable), throttled, blocked by IP (needs a VPN), refused by the service itself, or broken by DNS spoofing. Press "Починить" and it tests the Flowseal zapret strategy set and GoodbyeDPI against those services and installs the best one as a Windows service, rolling back if ordinary Russian sites break. It detects other bypass tools already installed (and their crashes or duplicates), estimates voice/UDP stability, can enable Windows 11 encrypted DNS, re-checks at every logon, and reverts everything on uninstall. Download `EzPzDPI.exe` from [Releases](https://github.com/semanticparadox/EzPzDPI/releases/latest).

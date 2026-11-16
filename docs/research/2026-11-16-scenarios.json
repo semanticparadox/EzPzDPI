@@ -1,0 +1,1607 @@
+{
+ "spec": {
+  "groups": [
+   {
+    "group": "1. Existing anti-DPI tools and conflicts",
+    "scenarios": [
+     {
+      "id": "E01-foreign-tool-inventory",
+      "priority": "must",
+      "detection": "Runs at every app start, before 'Проверить', and again before 'Починить'. Use APIs and the registry, not sc/netsh text, because that text is localized. (A) Processes via Win32_Process: Name, ExecutablePath, CommandLine, ParentProcessId; match winws.exe, winws2.exe, goodbyedpi.exe, ciadpi.exe, proxifyre.exe, spoofdpi.exe, ZapretGUI.Service.exe, 'ByeDPI Manager.exe'; exclude anything whose path is under C:\\ProgramData\\EzPzDPI. (B) Services via EnumServicesStatusEx + QueryServiceConfig: names zapret, discordfix_zapret, winws1, winws2, zapret2, GoodbyeDPI, plus ANY service whose ImagePath matches /winws2?\\.exe|goodbyedpi|ciadpi|zapret/i. (C) Kernel drivers: every HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinDivert* and Monkey* key (Type=1), with ImagePath and state. (D) Scheduled tasks (all users) whose action contains winws, goodbyedpi, zapret or general*.bat, including tasks named winws1..winws3. (E) Autostart: HKLM/HKCU ...\\CurrentVersion\\Run and RunOnce for every loaded hive under HKU, plus the Startup folders, for *.bat/*.lnk/*.exe targets that reference those names. (F) Network: loopback listeners owned by ciadpi/spoofdpi; system proxy pointing to 127.0.0.1. (G) As admin, processes with WinDivert.dll loaded, to catch renamed engines.",
+      "behavior": "Build one 'Найденные программы обхода' list. Each entry has a human name (zapret Flowseal / zapret bundle / GoodbyeDPI / ByeDPI / Zapret GUI / unknown), folder, state (работает / установлен, но остановлен / только остатки), how it starts (служба / ярлык в автозагрузке / задача планировщика / вручную) and, if readable, strategy and version. If nothing is found, the normal flow continues silently. Only read in this step; never stop or kill anything here. Log raw findings (service name, ImagePath, PID, parent) to C:\\ProgramData\\EzPzDPI\\logs.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/service_del.cmd",
+       "https://raw.githubusercontent.com/bol-van/zapret/master/docs/windows.en.md",
+       "https://raw.githubusercontent.com/ValdikSS/GoodbyeDPI/master/src/service.c",
+       "https://github.com/romanvht/ByeDPIManager",
+       "https://github.com/medvedeff-true/Zapret-GUI",
+       "https://github.com/bol-van/zapret-win-bundle/blob/master/windivert-hide/README.txt"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E02-flowseal-zapret-service-found",
+      "priority": "must",
+      "detection": "Service 'zapret' with ImagePath \"<root>\\bin\\winws.exe\" <args>; DisplayName 'zapret', Description 'Zapret DPI bypass software'. Strategy name = REG_SZ 'zapret-discord-youtube' under HKLM\\SYSTEM\\CurrentControlSet\\Services\\zapret (for example 'general (ALT3)'). Version = the `set \"LOCAL_VERSION=...\"` line in <root>\\service.bat (1.10.4 on main as of 2026-11-16). If service.bat is missing, fall back to the SHA-256 of winws.exe matched against known releases; never use the folder name. Also read <root>\\utils\\game_filter.enabled (present = Game Filter ON; lines mode=/tcp=/udp=), the first line of <root>\\lists\\ipset-all.txt (203.0.113.113/32 = ipset 'none'), <root>\\utils\\check_updates.enabled, and from the args whether --wf-udp includes 19294-19344 and 50000-50100 and whether a --filter-l7=discord,stun block exists.",
+      "behavior": "Show a separate first card instead of the normal start: 'Уже установлен обход блокировок: zapret (Flowseal) 1.10.4, способ «general (ALT3)», запускается сам вместе с Windows. Игровой фильтр: включён. Списки IP: режим «any».' Offer three actions: 'Проверить, как работает сейчас' (default, changes nothing), 'Заменить на EzPzDPI' and 'Оставить как есть'. Do NOT flag the args as defective because they lack 50101-65535; that range is not an official Discord fact. Do flag game filter ON and ipset 'any' as possible causes of instability, because Flowseal's README says both can break things.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E03-foreign-tool-not-a-service",
+      "priority": "must",
+      "detection": "winws.exe or goodbyedpi.exe is running with a parent of cmd.exe or explorer.exe (not services.exe). Or a Startup-folder .lnk/.bat, Run value or scheduled task points to general*.bat, winws.exe or goodbyedpi.exe in a zapret-like folder (one that contains service.bat, general*.bat, bin\\winws.exe and lists\\). A console title such as 'zapret: general (ALT)' is unverified; do not depend on it.",
+      "behavior": "Show it in the list as 'Найден автозапуск: ярлык «general (ALT).bat» в Автозагрузке' or 'Запущен вручную из окна консоли — если закрыть это окно, обход выключится'. The second case explains 'то работает, то нет' when the user closes the black window. Replacement uses the E05 flow: move the shortcut into a backup folder or disable the task, record it in the journal, and keep it restorable.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube",
+       "https://raw.githubusercontent.com/bol-van/zapret/master/docs/windows.en.md"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E04-measure-foreign-setup-and-ab-compare",
+      "priority": "must",
+      "detection": "The user picks 'Проверить, как работает сейчас' on the E02/E03 card.",
+      "behavior": "Run the full per-service check, including the Discord voice estimate (V01), with the foreign tool still running. Label every route 'Через ваш текущий zapret'. Then offer 'Сравнить с EzPzDPI'. That asks consent to pause the foreign tool temporarily (F03), adds the friend's exact winws args as a candidate (a newer Flowseal can beat EzPzDPI's bundled set), and runs interleaved A/B/A/B rounds with N new flows each. Recommend switching only on a clear margin; otherwise say 'Разницы не видно — оставляем ваш zapret'. Afterwards, restore the foreign tool exactly as it was unless the user chose to replace it. Before pausing, warn: 'Если вы сейчас в голосовом канале — звонок прервётся на пару секунд.'",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E05-replace-with-backup-and-restore",
+      "priority": "must",
+      "detection": "The user picks 'Заменить на EzPzDPI', or later 'Вернуть прежний обход'.",
+      "behavior": "Replace: write C:\\ProgramData\\EzPzDPI\\backup\\foreign-<timestamp>.json, plus an export of each service registry key, with the service name, ImagePath, StartType, state, the 'zapret-discord-youtube' value, tasks (XML + enabled flag), Run values and Startup shortcuts. Stop the GUI or watchdog first (E11), then stop the service and set start=disabled (never sc delete), disable tasks, move shortcuts to the backup folder, and stop the remaining processes by PID and exact path. Never touch the foreign folder. UI: 'Старый zapret отключён, но не удалён. Вернуть его можно одной кнопкой в Настройках.' Restore ('Вернуть как было'): check that the folder and exe still exist (hash matches). If yes, stop EzPzDPI, restore the start types, tasks and shortcuts, start the service and run a control check. If the folder is gone, say 'Папка старого zapret удалена — вернуть нечего' and do not recreate a broken service. Restore must keep working across EzPzDPI updates.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E06-two-or-more-engines-at-once",
+      "priority": "must",
+      "detection": "More than one live packet engine: count distinct PIDs of winws.exe, winws2.exe and goodbyedpi.exe plus any process holding WinDivert.dll, across all sessions. Or more than one service or task that would start one. Or two WinDivert driver keys with different ImagePaths or versions.",
+      "behavior": "Name this as the most likely cause first: 'Одновременно работают две программы обхода (zapret и GoodbyeDPI). Они обрабатывают одни и те же пакеты и мешают друг другу — это частая причина обрывов голоса и «то работает, то нет».' List each with its folder. Offer 'Оставить только одну': recommend by measured result, and on consent apply E05 to each extra. EzPzDPI never starts its own engine while a foreign engine is active. Flowseal itself warns that running two bypass services is undefined behaviour.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/4813",
+       "https://github.com/basil00/WinDivert/issues/196"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E07-foreign-service-crashes-without-recovery",
+      "priority": "must",
+      "detection": "A foreign service (zapret / GoodbyeDPI / winws1) has start=auto but is STOPPED now, or its winws start time is far later than boot. Event Log System, source 'Service Control Manager', IDs 7031/7034/7000/7023 naming that service. QueryServiceConfig2(SERVICE_CONFIG_FAILURE_ACTIONS) shows no recovery actions, which matches Flowseal's service.bat setting no `sc failure`.",
+      "behavior": "Report as its own cause, before any DPI theory: 'Ваш zapret падает и сам не перезапускается (последний раз — сегодня в 14:32). Поэтому всё работает, а потом пропадает до перезагрузки.' Offer the replace flow. Show the raw event line in 'Подробнее'.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E08-foreign-restarts-correlate-with-voice-drops",
+      "priority": "should",
+      "detection": "During the voice soak (V01), poll the foreign engine PIDs and start times every second, along with WinDivert driver state changes. A PID change that coincides with a probe gap is the signal. Each restart resets winws conntrack, so new Discord UDP flows go out without desync.",
+      "behavior": "'Обрывы совпадают с перезапусками zapret (3 раза за 5 минут) — проблема в нём, а не в провайдере.' Offer the replace flow, or close the GUI that restarts it.",
+      "sources": [
+       "https://github.com/bol-van/zapret/blob/master/docs/readme.md"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E09-orphans-and-stale-windivert",
+      "priority": "must",
+      "detection": "A service whose ImagePath file does not exist (for example 'zapret' pointing to a deleted Desktop folder). A WinDivert*/Monkey* driver key that is RUNNING or STOP_PENDING while no process holds WinDivert.dll. A driver ImagePath that points to a folder other than EzPzDPI's. A missing .sys file, which gives EAC the error 'is loaded but its file is missing'. A registered driver that is not running is NOT by itself a sign of an active tool.",
+      "behavior": "'Остались следы старой программы обхода: служба «zapret» ссылается на удалённую папку.' The 'Убрать остатки' button, on consent, records the services in the journal, then stops and deletes dead services and stops and deletes the stale WinDivert/WinDivert14/Monkey driver service, but only when no live owner exists. If the stop hangs (1051/1052/STOP_PENDING) or returns 1072 (marked for delete): 'Нужна перезагрузка — после неё EzPzDPI продолжит сам' (resume through the EzPzDPI service). Never delete driver files that belong to other installed software.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/4813",
+       "https://reqrypt.org/windivert-doc.html",
+       "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/windivert_delete.cmd"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E10-goodbyedpi-legacy",
+      "priority": "should",
+      "detection": "Service 'GoodbyeDPI' (hard-coded name) or process goodbyedpi.exe. Parse the args: -5/-9, --blacklist, --dns-addr/--dns-port/--dnsv6-addr (DNS redirect). The folder contains x86_64\\goodbyedpi.exe, russia-blacklist.txt and service_install_russia_blacklist*.cmd. A WinDivert14 key suggests an old 0.1.x-era install; current 0.2.x appears to ship WinDivert 2.2.x (unverified).",
+      "behavior": "'Найден GoodbyeDPI. Он работает только с сайтами (TCP) и не умеет чинить голос Discord — поэтому звонки могут не работать.' If --dns-addr is set, note that DNS answers on this PC are already redirected, and adjust the DNS-spoofing verdict (N05). Offer the replace flow (E05).",
+      "sources": [
+       "https://raw.githubusercontent.com/ValdikSS/GoodbyeDPI/master/src/service.c",
+       "https://github.com/ValdikSS/GoodbyeDPI",
+       "https://habr.com/en/articles/843272"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E11-gui-wrappers-and-watchdogs",
+      "priority": "must",
+      "detection": "ZapretGUI.Service.exe (a helper service that runs winws in a Job Object and kills or restarts it). Its user data is in %USERPROFILE%\\ZapretGUI; the service registration name is unverified. Tray GUIs: GoodbyeDPI-UI (Storik4pro, has autostart; process name unverified), 'ByeDPI Manager.exe' and Zapret-2-GUI. The general rule: a winws or goodbyedpi parent that is neither services.exe nor cmd.exe means a launcher.",
+      "behavior": "Stop the GUI and its helper service BEFORE its engine, otherwise it respawns the engine or reacts to EzPzDPI as a conflict. UI: 'zapret управляется программой Zapret GUI — она снова запустит его, если её не закрыть. Закрыть её на время проверки?' Never uninstall a GUI; only stop or disable it with a journal entry. If a foreign engine reappears during a test round, abort the round (F03).",
+      "sources": [
+       "https://github.com/medvedeff-true/Zapret-GUI",
+       "https://github.com/Storik4pro/goodbyeDPI-UI",
+       "https://github.com/TheFirstNoob/Zapret-2-GUI"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E12-proxy-based-bypass-tools",
+      "priority": "should",
+      "detection": "ciadpi.exe (ByeDPI) listening on TCP 1080 (default 0.0.0.0:1080; the manager uses 127.0.0.1:1080). proxifyre.exe (ProxiFyre, which uses the Windows Packet Filter/ndisapi driver). spoofdpi.exe on 8080 in older versions. These tools have no service and no driver of their own (except the ndisapi driver). System proxy in HKCU Internet Settings: ProxyEnable=1, ProxyServer=127.0.0.1:<that port>.",
+      "behavior": "'Работает ByeDPI (локальный прокси). Через прокси идут только сайты; голос Discord (UDP) мимо него.' Our test client always bypasses the proxy (N03), and the result is labelled. On replace, kill those processes by PID+path after consent. Reset the system proxy only on consent and with a journal entry. Never remove the ndisapi/WinpkFilter driver, because other software shares it.",
+      "sources": [
+       "https://github.com/romanvht/ByeDPIManager",
+       "https://newreleases.io/project/github/romanvht/ByeDPIManager/release/v.1.1.0",
+       "https://git.axenov.dev/mirrors/SpoofDPI/src/tag/v0.10.8"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E13-discord-only-proxy-text-yes-voice-no",
+      "priority": "must",
+      "detection": "Discord.exe (also DiscordPTB.exe, DiscordCanary.exe, vesktop.exe) has TCP connections to 127.0.0.1:<port> (GetExtendedTcpTable owner PID). Drover files version.dll + drover.ini exist in %LocalAppData%\\Discord\\app-*\\ (and the PTB/Canary folders; file names unverified). A --proxy-server= argument appears in the Discord process command line or its shortcuts. proxifyre.exe or Proxifier.exe is running.",
+      "behavior": "'Discord подключается через прокси (Drover/ByeDPI). Через прокси идёт только текст — голос идёт мимо и поэтому обрывается или не подключается.' Ask the user to fully close Discord, then offer 'Отключить для Discord': rename the files to *.ezpz-off and record the change in the journal so it can be restored.",
+      "sources": [
+       "https://github.com/romanvht/ByeDPIManager"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E14-foreign-tool-returns-or-kills-ezpz-engine",
+      "priority": "must",
+      "detection": "The EzPzDPI service supervises its engine: unexpected exit, exit code, the WinDivert key disappearing or error 1072. A periodic scan (E01) on boot, resume and network change finds a foreign service, process or task that appeared after replacement. Flowseal 'Remove Services' runs `taskkill /IM winws.exe /F` and deletes WinDivert/WinDivert14, which would kill an engine that is also named winws.exe.",
+      "behavior": "Ship the engine under its own image name (for example ezpzdpi-engine.exe). Verify that cygwin1.dll loading still works after the rename. On the first unexpected exit, restart once. If a foreign engine is active, pause EzPzDPI's engine (no double processing) and ask once: 'Снова запущен zapret (Flowseal). Две программы обхода мешают друг другу — оставить EzPzDPI или zapret?' Remember the answer, and never fight in a loop.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E15-other-users-autostart",
+      "priority": "should",
+      "detection": "Run/RunOnce under every HKU\\<SID> hive (load NTUSER.DAT of logged-off profiles read-only), every profile's Startup folder, tasks for all users, and processes from all sessions.",
+      "behavior": "'Найден автозапуск zapret у пользователя «Миша» — он включается, когда Миша входит в систему, и мешает EzPzDPI.' Disable it only with admin consent, after a backup and a journal entry.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "E16-foreign-folder-onedrive-or-bad-path",
+      "priority": "should",
+      "detection": "The foreign ImagePath is under %OneDrive% or the path contains 'OneDrive'. The binary has FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS or OFFLINE. The path contains Cyrillic or '!' (Flowseal #8654: '!' made WinDivert64.sys 'NOT found'). WinDivert64.sys is missing in <root>\\bin (AV quarantine).",
+      "behavior": "'zapret лежит в папке OneDrive — Windows иногда выгружает его файлы в облако, и обход не запускается.' Or 'в пути к папке есть символ «!» — из-за этого zapret не находит драйвер'. Offer the replace flow. If the user keeps their tool, advise moving the folder to C:\\zapret.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/8654"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E17-unknown-or-legit-windivert-users",
+      "priority": "should",
+      "detection": "A non-listed process with WinDivert.dll loaded. A WinDivert*/Monkey* driver ImagePath outside known bypass folders (game ping boosters, Clumsy, traffic shapers, VPN split-tunnel tools). NordVPN's WFP filter plus another WinDivert user can give FWP_E_ALREADY_EXISTS (WinDivert issue #196, no confirmed fix).",
+      "behavior": "Unknown bypass-like: 'Неизвестная программа перехватывает трафик: <путь к exe>' — ask before stopping. Legitimate non-bypass owner: never stop or delete its driver. If the versions clash (error 654), explain and offer 'закройте программу X или перезагрузите компьютер'.",
+      "sources": [
+       "https://github.com/basil00/WinDivert/issues/196",
+       "https://reqrypt.org/windivert-doc.html",
+       "https://github.com/bol-van/zapret-win-bundle/blob/master/windivert-hide/README.txt"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "E18-network-interfering-software",
+      "priority": "should",
+      "detection": "From the Flowseal diagnostics list: process AdguardSvc.exe; any service display name matching /killer/i, /smartbyte/i or /intel.*connectivity.*network/i; services TracSrvWrapper or EPWD (Check Point); a service text match of 'VPN' or 'HappService'. Unverified hints: NetLimiter (nlsvc), Kaspersky (avp.exe), ESET (ekrn.exe), Npcap, ExitLag or NoPing.",
+      "behavior": "Show these as info or warning, not as errors. AdGuard: 'AdGuard фильтрует трафик Discord и может ломать голос — исключите Discord в AdGuard (Настройки → Сеть → Фильтруемые приложения) или отключите фильтрацию на время звонков.' Mark the Discord voice result as 'неточно, пока работает AdGuard'. Killer/SmartByte/Intel/Check Point: 'Эта программа может конфликтовать с драйвером обхода.' Optional, opt-in 'Остановить и отключить эти службы': show the exact service list, store the previous StartType in the journal, provide undo, and reboot. Never disable antivirus or firewall products.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/417",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/2512",
+       "https://github.com/ValdikSS/GoodbyeDPI"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "E19-already-works-or-router-bypass",
+      "priority": "must",
+      "detection": "No local tool, VPN or proxy is found, and the known-blocked targets pass: no stub DNS, no 16-20 KB freeze, and Discord UDP replies arrive. A foreign egress ASN with no local tunnel suggests a VPN on the router. Gateway vendor from the web banner or MAC OUI is a hint only.",
+      "behavior": "'Всё и так работает — ничего ставить не нужно.' 'Починить' becomes secondary and no service is installed. If the egress is foreign or a router bypass is suspected: 'Похоже, обход уже настроен на роутере — ставить ещё один на компьютер не стоит: два обхода мешают друг другу.' If the user still fixes, keep the local engine only if it beats the router-only baseline.",
+      "sources": [],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "2. Network conditions (VPN, proxy, DNS, whitelists, offline, IPv6, hotspot)",
+    "scenarios": [
+     {
+      "id": "N01-offline-captive-portal-wrong-clock",
+      "priority": "must",
+      "detection": "The ya.ru control and a Microsoft NCSI probe (msftconnecttest) both fail: offline. NCSI redirects: captive portal. No default gateway. The system clock differs from the HTTPS Date header of a reachable server by more than ~5 minutes, or TLS fails with certificate time errors while plain TCP works: wrong clock.",
+      "behavior": "Stop before any per-service verdict and never run 'Починить'. Messages: 'Интернета нет совсем — дело не в блокировках. Проверьте Wi-Fi или кабель.' / 'Нужно войти в сеть Wi-Fi — откроем страницу входа' (opens the browser) / 'На компьютере неправильные дата и время (2019 год) — из-за этого сайты не открываются' with a button that opens Windows time settings.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "N02-full-tunnel-vpn-active",
+      "priority": "must",
+      "detection": "Don't rely on adapter names. Check the lowest-metric default route (0.0.0.0/0, or the split 0.0.0.0/1 + 128.0.0.0/1 and ::/1 + 8000::/1) via GetBestRoute2 to the actual test target IPs. Flag it if the route goes through an adapter with an InterfaceDescription matching /Wintun|WireGuard|TAP-Windows|TAP-.*Adapter|OpenVPN|ovpn-dco|Amnezia|NordLynx|WARP/i or an IfType tunnel/PPP. Service CloudflareWARP / process warp-svc.exe. Processes that hint at a VPN (unverified list: v2rayN, xray, sing-box, mihomo, clash-verge, Hiddify, Throne, nekoray, AmneziaVPN, amneziawg, wireguard, openvpn, tor, psiphon3, lantern). Egress IP/ASN from two echo services is foreign or a datacenter.",
+      "behavior": "Before checking: 'Сейчас включён VPN (Hiddify). Проверка покажет VPN, а не вашего провайдера. Выключите VPN и нажмите «Проверить» ещё раз.' Allow 'Проверить всё равно', with a banner on every result row. Block 'Починить' while a full-tunnel VPN carries the test targets, because strategy scoring would be meaningless. Never kill or disconnect a VPN ourselves. For WARP, give the hint 'отключите WARP в его значке'; do not stop or delete its service.",
+      "sources": [
+       "https://git.zx2c4.com/wireguard-windows/tree/docs/netquirk.md?h=v0.3",
+       "https://support.ovpn.com/hc/en-us/articles/46236271351187-Explanation-Wintun",
+       "https://www.techradar.com/vpn/what-is-a-tap-adapter",
+       "https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "N03-system-proxy-winhttp-pac",
+      "priority": "must",
+      "detection": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings ProxyEnable=1 + ProxyServer (Flowseal check). AutoConfigURL (PAC) and AutoDetect (unverified keys). The policy hive HKLM\\SOFTWARE\\Policies\\...\\Internet Settings (unverified). WinHTTP proxy via WinHttpGetDefaultProxyConfiguration or `netsh winhttp show advproxy` (do not parse its localized text; use the API). Dead proxy: TCP connect to the ProxyServer host:port fails.",
+      "behavior": "The test client always bypasses the system proxy (HttpClient UseProxy=false), and the run says 'В системе включён прокси 127.0.0.1:10809 — браузер идёт через него, проверка шла напрямую.' A dead local proxy is a separate finding: 'Прокси от удалённой программы остался включён и указывает в пустоту — из-за этого браузер не открывает сайты.' 'Отключить зависший прокси' shows the exact value, writes it to the journal and has an undo. Never clear a working proxy silently.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://learn.microsoft.com/en-us/windows/win32/winhttp/netsh-exe-commands"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "N04-vpn-coexistence-after-fix",
+      "priority": "should",
+      "detection": "The EzPzDPI service is running and a VPN adapter comes up or takes the default route. Background health probes fail repeatedly while the VPN is up.",
+      "behavior": "One tray notice: 'Включён VPN. EzPzDPI можно не выключать; если VPN не подключается или голос пропадает — нажмите «Пауза».' Optional setting 'Ставить на паузу, пока включён VPN'. Prefer --wf-iface or physical-interface scoping so winws does not touch tunnel traffic. Interface binding with WinDivert is unverified; test it.",
+      "sources": [
+       "https://raw.githubusercontent.com/bol-van/zapret/master/docs/windows.en.md",
+       "https://github.com/basil00/WinDivert/issues/196"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "N05-dns-spoofing-local-resolver-parental",
+      "priority": "must",
+      "detection": "Existing stub-IP detection: system resolver vs DoH. Query at least two DoH providers in different ASNs; a DoH timeout means UNKNOWN, never 'clean'. Per-adapter DNS servers via GetAdaptersAddresses: 127.0.0.1 means a local resolver (AdGuard, dnscrypt and similar); 77.88.8.7 and similar are family filters (unverified list); router IP. Windows DoH: HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\InterfaceSpecificParameters\\*\\DohFlags > 0. GoodbyeDPI --dns-addr redirect (E10).",
+      "behavior": "Spoofed: 'Провайдер подменяет адрес YouTube (DNS).' Offer Windows encrypted DNS: back up the old settings in the journal and provide undo. DoH unreachable: 'Не удалось проверить DNS (защищённый DNS недоступен)' — shown as unknown. Family or parental DNS: 'Установлен семейный фильтр DNS — его поставил кто-то из взрослых? Менять?' and never override silently. Local resolver: 'DNS обрабатывает программа на этом компьютере (AdGuard).' Restore DNS on uninstall.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://meduza.io/cards/roskomnadzor-vrode-by-polnostyu-zablokiroval-yutyub-votsap-i-esche-desyatki-resursov-eti-ogranicheniya-chto-voobsche-nikak-ne-oboyti"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "N06-leftover-hosts-entries",
+      "priority": "must",
+      "detection": "Read %SystemRoot%\\System32\\drivers\\etc\\hosts, keeping its encoding and line endings. Flag non-comment lines for /youtube|youtu\\.be|googlevideo|ytimg|ggpht|discord|discordapp|discord\\.media|instagram|cdninstagram|fbcdn|telegram|twimg|x\\.com/ whose IP is not 0.0.0.0, 127.0.0.1 or ::1 (loopback blocks are a separate user choice). Detect the Flowseal payload block: discord.com and updates.discord.com to 162.159.128.233, .135.232, .137.232 or .138.232; github to 140.82.121.3; Telegram to 149.154.167.220. Also old finland100xx.discord.media lines to 104.25.158.178 (obsolete). Compare each line with the DoH answer. Flowseal's service.bat never edits hosts automatically; it is a manual paste.",
+      "behavior": "'В файле hosts есть 14 строк для Discord и YouTube от старых инструкций; 4 из них ведут на неработающие адреса — из-за этого сайты могут не открываться.' 'Убрать (с резервной копией)' only in the fix phase, after consent: show the exact lines, back up to C:\\ProgramData\\EzPzDPI\\backup\\hosts.<yyyyMMdd-HHmmss>.bak (keep 5), clear and restore the ReadOnly attribute, comment lines out with '# EzPzDPI disabled <date>', write atomically, run DnsFlushResolverCache, and provide 'Восстановить из копии'. Never touch lines it cannot classify.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/hosts",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://habr.com/en/articles/1002160",
+       "https://github.com/TheFirstNoob/Zapret-2-GUI",
+       "https://support.mozilla.org/ru/questions/1443537"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "N07-browser-secure-dns-ech-quic",
+      "priority": "should",
+      "detection": "The app's test passes but the user clicks 'Не работает в браузере'. Check the Chrome/Edge DnsOverHttpsMode policy and user setting, and Firefox TRR. Run a QUIC Initial probe to googlevideo on UDP 443. Optionally run an ECH ClientHello test using the HTTPS RR fetched over DoH (community reports since Nov 2024 say ECH with SNI cloudflare-ech.com is blocked; unverified here). Detect Yandex Browser and Opera VPN.",
+      "behavior": "After any fix: a 'Проверьте в браузере' step with a big link. 'Не работает в браузере' runs the QUIC and ECH tests and either picks a strategy that covers UDP 443 or explains: 'Закройте браузер полностью и откройте снова — старые соединения остаются.' / 'Браузер использует шифрование ECH, которое провайдер блокирует отдельно — выключите «Безопасный DNS» в браузере.' Disabling QUIC in the browser is the last resort, with instructions.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "N08-whitelist-mode-mobile",
+      "priority": "must",
+      "detection": "ya.ru passes, but several unrelated foreign targets fail TCP connect on any port, including neutral ones (1.1.1.1:443, example.com), and every SNI fails identically. Hints: WWAN adapter type, hotspot gateway 192.168.43.1 or 172.20.10.1, mobile-operator ASN.",
+      "behavior": "Do not run the strategy search. 'Похоже, у мобильного оператора сейчас режим «белых списков»: открываются только разрешённые сайты. EzPzDPI тут не поможет; на домашнем Wi-Fi всё должно работать как раньше.' Keep the saved home strategy untouched.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "N09-ipv6-path",
+      "priority": "could",
+      "detection": "A global IPv6 address with a default route exists. Run the per-service checks separately over v4 and v6 (connect to AAAA records).",
+      "behavior": "Include IPv6 in testing and scoring. If v6 fails where v4 passes, prefer a strategy that covers v6. Only as a last resort offer 'Отключить IPv6 для этого подключения', with a journal entry and undo, explained in one line.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "N10-hotspot-ics-other-devices",
+      "priority": "could",
+      "detection": "The ICS or Mobile Hotspot service is active (SharedAccess / icssvc), or there are vEthernet/Hyper-V adapters. Forwarded traffic is unsupported by winws per the zapret docs.",
+      "behavior": "In help and after a fix: 'Обход работает только для программ на этом компьютере — не для телефона, телевизора или приставки, даже если они в той же сети или раздаёте с ПК интернет.'",
+      "sources": [
+       "https://raw.githubusercontent.com/bol-van/zapret/master/docs/windows.en.md"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "N11-tls-interception-by-antivirus",
+      "priority": "should",
+      "detection": "Fetch a probe HTTPS site and read the issuer of the chain: not a public CA, or a substring match on Kaspersky, ESET SSL Filter, Avast, AVG, Dr.Web or AdGuard Personal CA (exact strings unverified). Also look in Cert:\\LocalMachine\\Root and CurrentUser\\Root for these issuers.",
+      "behavior": "'Антивирус проверяет защищённые соединения — результаты проверки могут быть неточными, а обход может не работать для этих сайтов.' Instructions for adding discord.com, youtube.com and googlevideo.com to the AV's trusted addresses. Never change AV settings ourselves.",
+      "sources": [
+       "https://forum.kaspersky.com/topic/%D0%BF%D1%80%D0%BE%D0%B2%D0%B5%D1%80%D0%BA%D0%B0-%D0%B7%D0%B0%D1%89%D0%B8%D1%89%D0%B5%D0%BD%D0%BD%D1%8B%D1%85-%D1%81%D0%BE%D0%B5%D0%B4%D0%B8%D0%BD%D0%B5%D0%BD%D0%B8%D0%B9-%D0%B8-%D1%84%D0%B0%D0%B9%D0%BB-hosts-58305/",
+       "https://support.kaspersky.com/KESWin/12.9/ru-RU/175151.htm"
+      ],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "3. Diagnosis states per service",
+    "scenarios": [
+     {
+      "id": "D01-works",
+      "priority": "must",
+      "detection": "TLS with a Chrome fingerprint succeeds, a download past 20 KB succeeds at a speed comparable to control, and the DoH and system answers match.",
+      "behavior": "Green route 'Работает'. If every service works, see E19: nothing to install.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "D02-blocked-fixable",
+      "priority": "must",
+      "detection": "TCP connects to the real IP, but the TLS handshake gets RST or a timeout after the ClientHello, depending on SNI. The same IP with a neutral SNI works.",
+      "behavior": "'Заблокировано, можно починить.' The service is included in the strategy search.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "D03-throttled-vs-slow-internet",
+      "priority": "must",
+      "detection": "Existing 16-20 KB freeze detector, plus a speed comparison with a similar-size file from a Russian CDN, repeated 2-3 times. Use 'freeze' only when it consistently stops at that size.",
+      "behavior": "'Замедляется' with numbers: 'YouTube: ~0,4 Мбит/с, обычный интернет: 80 Мбит/с'. If control is also slow: 'Медленный весь интернет — дело не в блокировке', and no strategy search. Re-measure after the fix and show before and after.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "D04-blocked-or-throttled-by-ip",
+      "priority": "must",
+      "detection": "TCP SYN to the service IP times out or gets RST regardless of SNI. Or the 16-20 KB freeze also happens to the SAME IP with a neutral SNI or another host on that IP, while a control host in another ASN passes. This IP-level hosting/CDN throttling is community-reported only.",
+      "behavior": "Skip the strategy search for that row. 'Провайдер перекрыл доступ к адресам Discord, а не просто «прячет» сайт. EzPzDPI тут не поможет — нужен VPN.' For the IP-level freeze, say 'вероятно ограничено по адресу (хостинг/CDN)'. Never recommend a specific VPN.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "D05-service-refuses-russia",
+      "priority": "must",
+      "detection": "The TLS handshake succeeds, then HTTP 403 or 451 or a known geo-block body or redirect comes from the service itself.",
+      "behavior": "A visually distinct row: 'Сервис сам не работает для России — это не провайдер, обход тут бессилен.' No fix button, and it is not counted as a fix failure.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "D06-dns-spoofing-row",
+      "priority": "must",
+      "detection": "The system resolver returns a stub IP or one that differs from DoH; see N05. If DoH failed, the state is unknown.",
+      "behavior": "'Провайдер подменяет адрес (DNS)' is shown separately from the DPI verdict. The fix flow offers encrypted DNS (N05). 'Не удалось проверить DNS' is never shown as OK.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "D07-partial-subparts",
+      "priority": "must",
+      "detection": "Separate probes per sub-part. Discord: discord.com, gateway.discord.gg, cdn.discordapp.com/media.discordapp.net, updates.discord.com/dl.discordapp.net (updater), discord.media TCP 443/2053/2083/2087/2096/8443, and the voice UDP estimate (V01). YouTube: site, googlevideo nodes (several), QUIC. Instagram: site vs cdninstagram.",
+      "behavior": "Mark the row 'Частично' and name the broken part: 'Сайт открывается, видео — нет' / 'Чат работает, голос — обрывается' / 'Discord не может обновиться (висит «Checking for updates»)'. If some googlevideo nodes or Discord regions fail while others pass, update the lists first and retest (P07) before blaming the ISP.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/hosts"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "D08-could-not-verify",
+      "priority": "should",
+      "detection": "HTTP 429, a Cloudflare challenge (cf-mitigated header or challenge body), a sudden failure of all candidates after earlier ones passed, a DoH failure, or a probe-host timeout with a failing control.",
+      "behavior": "'Не удалось проверить' — grey, never red. Back off and retry later, and space the probes out. Never score a strategy as failed on a rate-limited probe.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "D09-result-provenance-labels",
+      "priority": "must",
+      "detection": "State at test time: a foreign tool active (E04), a VPN or proxy on (N02/N03), AdGuard or TLS interception (E18/N11).",
+      "behavior": "Every result screen states how it was measured: 'Через ваш текущий zapret' / 'Через VPN — это не ваш провайдер' / 'Напрямую через провайдера'. The 'Отчёт' keeps the same label.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "D10-tls-fingerprint-drift",
+      "priority": "should",
+      "detection": "Current Chrome and Discord's Electron send an X25519MLKEM768 key share, so the ClientHello spans more than one packet. Ship the fingerprint as updatable data and log its version.",
+      "behavior": "For the Discord row, optionally test both the current-Chrome and the Discord-Electron fingerprint. Not user-visible, except as the 'версия отпечатка' line in Подробнее. Verify on a live Russian line before relying on it.",
+      "sources": [],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "4. Discord voice / UDP stability",
+    "scenarios": [
+     {
+      "id": "V01-voice-estimate-row",
+      "priority": "must",
+      "detection": "A separate 'Голос Discord (оценка)' probe; full design in voice_test. It has three parts: a handshake test (N new UDP flows with IP-Discovery-shaped and STUN packets to the 19294-19344 and 50000-50100 families), a soak test (60-180 s, 1 packet/s, gaps over 2 s, loss), and TCP SYN-ACK to discord.media on 443/2053/2083/2087/2096/8443.",
+      "behavior": "A route row with states 'стабильно' / 'подключается не с первого раза' / 'подключается, потом обрывается' / 'не подключается'. Example: 'Голос Discord: обрывается (3 пропадания за 2 минуты)'. During the long part: 'Проверяем голос Discord — около 2 минут, чтобы поймать обрывы. Можно пропустить.' Always label it 'оценка'; never claim 'голос работает' from TCP or from probes alone.",
+      "sources": [
+       "https://docs.discord.com/developers/topics/voice-connections",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V02-handshake-vs-degrades",
+      "priority": "must",
+      "detection": "Handshake success ratio across N fresh flows: 0% = blocked, 10-90% = flaky (matches the ~1/15 random success in #16192), 100% then gaps during soak = degrades. Community evidence says the TSPU drops the STUN magic cookie 0x2112A442 and Discord IP Discovery at flow start, while established flows mostly pass. winws only desyncs the first packets of a flow (conntrack, UDP default 60 s); it cannot fix mid-flow drops.",
+      "behavior": "Plain wording per class. Blocked: 'Голосовой сервер не отвечает — подключение к голосу не проходит.' Flaky: 'Голос подключается через раз — отсюда «бесконечное RTC подключение».' Degrades: 'Подключается, потом обрывается.' The class drives the next step: strategy search (V03), region (V05), local network (V06), foreign tool (E06/E07/E08) or VPN (V04).",
+      "sources": [
+       "https://habr.com/en/articles/990130",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/7810",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192",
+       "https://github.com/bol-van/zapret/blob/master/docs/readme.md"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V03-voice-aware-strategy-ranking",
+      "priority": "must",
+      "detection": "The user marked Discord voice as important (F02), or the voice row is not 'стабильно'.",
+      "behavior": "Run the short handshake burst for every candidate, then a long soak only for the top 2-3. Rank by voice stability first, then HTTPS, with no control regressions (F05). Candidate variants should vary the voice UDP block: repeats 6/8/11, a different fake-discord/fake-stun payload, with or without any-protocol+cutoff, the UDP-length option for winws2. Also try removing the fake-discord/fake-stun QUIC parts, which a Flowseal contributor suggested for endless RTC connecting. After the fix: 'Голос Discord: держится 3 минуты без обрывов (оценка).'",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/7810",
+       "https://github.com/TheFirstNoob/Zapret-2-GUI",
+       "https://github.com/bol-van/zapret/blob/master/docs/readme.md"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V04-voice-unfixable",
+      "priority": "must",
+      "detection": "All candidates fail the handshake while control works, and TCP to discord.media IPs fails regardless of SNI.",
+      "behavior": "'Голос Discord у вашего провайдера перекрыт по адресам — EzPzDPI это не обходит. Для звонков в Discord нужен VPN.' Keep the best strategy for the services it does fix, and do not cycle strategies forever.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "V05-region-specific",
+      "priority": "should",
+      "detection": "Probes against different regional voice IP groups show a difference, for example Finland/auto failing while others pass. The bundled voice IP lists are stale-prone (old finland100xx hosts are obsolete).",
+      "behavior": "Offer this only when testing shows a regional difference: 'В настройках голосового канала выберите регион, например Rotterdam, вместо «Автоматически».' Add: 'Если у вас нет прав на канал — попросите администратора сервера (нужно право «Управлять каналами»).' Whether DM or group calls allow region choice is unverified, so do not promise it.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/7810",
+       "https://github.com/TheFirstNoob/Zapret-2-GUI"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V06-local-wifi-loss",
+      "priority": "should",
+      "detection": "During the soak, ping the default gateway at 5-10 Hz. RTT spikes or loss to the gateway (before the ISP) point to a local problem. Also read the WLAN signal (WlanQueryInterface), the band and the adapter power-saving flag. Repeat with all DPI tools stopped against a non-blocked control.",
+      "behavior": "'Обрывы происходят ещё до провайдера — в вашем Wi-Fi (скачки задержки каждые ~60 с).' Give 1-2 tips: cable, 5 GHz, closer to the router. Do not switch strategies because of it.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "V07-existing-connections-keep-old-path",
+      "priority": "must",
+      "detection": "Discord.exe or a browser is running when a strategy is enabled, switched or a foreign tool is paused. Discord has active UDP flows (GetExtendedUdpTable owner PID).",
+      "behavior": "Before: 'Если вы сейчас в голосовом канале — звонок прервётся на пару секунд.' After enable: 'Полностью закройте Discord (в трее — «Выйти») и браузер и откройте снова, чтобы изменения применились.' Optional 'Очистить кэш Discord' (Cache, Code Cache, GPUCache in %APPDATA%\\discord, discordptb, discordcanary, discorddevelopment), only when Discord is closed and on consent.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "V08-game-filter-ipset-any-in-foreign-setup",
+      "priority": "should",
+      "detection": "In the foreign setup: utils\\game_filter.enabled exists (default port range 1024-65535, fake-unknown-udp, repeats 12, cutoff n2), ipset-all.txt is in 'any' mode, or the args contain a wide --filter-udp.",
+      "behavior": "'В текущем обходе включён «игровой фильтр» и режим списков «any» — по словам автора zapret, они могут ломать то, что работало без обхода, в том числе голос и игры.' EzPzDPI's own strategies exclude game traffic by default.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube",
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/general.bat"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "V09-optional-client-tips",
+      "priority": "could",
+      "detection": "Voice is still 'обрывается' after the best strategy.",
+      "behavior": "Shown under 'Можно ещё попробовать (не гарантировано)': turn off QoS in Discord's Voice & Video settings, turn off hardware acceleration, try Discord in a browser. Never record them as the reason something now works.",
+      "sources": [
+       "https://helpdeskgeek.com/discord-keeps-disconnecting-and-reconnecting-15-ways-to-fix/",
+       "https://github.com/Flowseal/zapret-discord-youtube"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V10-isp-session-fault",
+      "priority": "could",
+      "detection": "TCP 443 to Cloudflare IPs gets no SYN-ACK while ICMP ping works, and the result is the same with and without a strategy (#16192 was fixed by the ISP restarting the subscriber session).",
+      "behavior": "'Похоже на сбой у провайдера: перезагрузите роутер (или переподключите интернет). Если не поможет — позвоните провайдеру.'",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/16192"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "V11-real-call-monitor",
+      "priority": "should",
+      "detection": "The user starts 'Проверка во время звонка': they join a real voice channel for 5 minutes. The app watches Discord.exe UDP flows (GetExtendedUdpTable: new local port = reconnect), engine restarts (own and foreign), gateway loss, and Discord logs in %AppData%\\discord\\logs if readable (log line format unverified).",
+      "behavior": "Afterwards: 'За 5 минут Discord переподключал голос 2 раза. В эти моменты: сеть до роутера в порядке, zapret не перезапускался → вероятно провайдер/стратегия.' This leads to V03 or V05. This mode is the only path to more than an estimate, and it is still labelled correlation.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "V12-discord-client-variants",
+      "priority": "could",
+      "detection": "Folders %APPDATA%\\discord, discordptb, discordcanary, discorddevelopment and %LocalAppData% equivalents; processes DiscordPTB.exe, DiscordCanary.exe, vesktop.exe (names unverified).",
+      "behavior": "Apply the proxy, Drover, cache and restart advice to the client actually installed or running.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+      ],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "5. Fixing flow",
+    "scenarios": [
+     {
+      "id": "F01-preflight-environment-check",
+      "priority": "must",
+      "detection": "Before 'Починить', using APIs. BFE state and start type (QueryServiceStatusEx); disabled means WinDivert error 1753. TCP timestamps via CIM MSFT_NetTCPSetting (verify on Russian Windows; Flowseal's English findstr is unreliable). Foreign tools (E01/E06), VPN/proxy (N02/N03), AV (X02), HVCI/Secure Boot (X03), conflict software (E18), and that bundled binary hashes match.",
+      "behavior": "A short checklist with severities. Blocker (cannot fix until resolved): VPN on, another bypass engine active, files missing, unsupported OS. Auto-fixable with consent, journaled: 'Служба базовой фильтрации выключена — включить?' (sc config BFE start=auto + start); TCP timestamps enable. Warnings: AdGuard, Killer, anti-cheat.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/4813",
+       "https://reqrypt.org/windivert-doc.html"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "F02-ask-priorities-once",
+      "priority": "must",
+      "detection": "First 'Починить' on this network profile.",
+      "behavior": "'Что важнее всего?' with checkboxes: YouTube / Discord (сайт и чат) / Голос в Discord / Twitch / Игры. These choices weight the strategy choice (F07) and decide whether the long voice soak runs (V03).",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "F03-consent-to-pause-foreign-for-testing",
+      "priority": "must",
+      "detection": "A foreign tool from E01 is active and the user started a comparison or fix.",
+      "behavior": "Ask once, with exact names and paths: 'Для проверки временно остановим zapret (Flowseal) из C:\\Users\\…\\zapret-discord-youtube. После проверки он снова включится.' Record and temporarily neutralise each autostart point (service start type, task enabled, GUI process). Throughout every test window, watch for a new engine process or a WinDivert ImagePath change. If one appears, abort the round: 'zapret снова запустила программа Zapret GUI — закройте её или разрешите выключить на время.' Never publish scores measured with two engines active. Restore everything after the test unless the user chose to replace.",
+      "sources": [
+       "https://github.com/medvedeff-true/Zapret-GUI"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "F04-strategy-search-ux",
+      "priority": "must",
+      "detection": "Strategy search in progress (~25 zapret + 3 GoodbyeDPI).",
+      "behavior": "Plain progress with an honest estimate: 'Пробуем способ 7 из 28 — осталось примерно 3 минуты. Можно свернуть окно.' Technical names stay behind 'Подробнее'. The cancel button reads 'Отменить — ничего не сломается'. Rows already classified as unfixable (D04, D05, N08) are skipped. Probes are spaced out and back off on rate limits (D08). No raw stack traces.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "F05-no-regressions-scoped-traffic",
+      "priority": "must",
+      "detection": "Every candidate is also tested against a control set (ya.ru, gosuslugi.ru, sberbank.ru, vk.com, a DNS resolve, plus Steam or Epic reachability if games are a priority), with before/after latency.",
+      "behavior": "Any control regression disqualifies the candidate. Default to hostlist/ipset scoping, with UDP limited to QUIC 443 and the Discord voice families (no game filter). If a site degrades after enabling: 'Госуслуги стали открываться хуже — исключили их из обработки' (added to an exclude list). A 'Сайт перестал открываться' entry lets the user type a site; the service pauses briefly to compare, then adds the exclusion.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "F06-deadman-rollback-after-enable",
+      "priority": "must",
+      "detection": "After the EzPzDPI service starts: rerun the control set within 10-30 s. Known filter-driver conflict software present (AdGuard, NetLimiter, Kaspersky network protection) raises the alert level.",
+      "behavior": "If control fails, or the user does not press 'Всё работает' within 60 s (like a screen-resolution confirm), stop the service and restore the previous state, including a replaced foreign tool. 'Этот способ сломал обычные сайты — отключили его, интернет вернули как было. Найдена программа AdGuard, она может конфликтовать.' The tray item 'Выключить EzPzDPI полностью' always works offline, and an offline help page is bundled.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "F07-partial-result-and-tradeoffs",
+      "priority": "must",
+      "detection": "The results matrix has no candidate covering all fixable services.",
+      "behavior": "Pick by the F02 priorities with zero control regressions. Ask once if needed: 'Лучший вариант для голоса Discord немного замедляет YouTube. Выбрать его?' Final summary in three columns: 'Исправлено' / 'Обход не поможет — нужен VPN' / 'Сервис сам не работает в России'. Offer 'Попробовать позже' (blocks change) and opt-in 'Отправить анонимный отчёт' (no IP).",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "F08-interrupted-fix",
+      "priority": "must",
+      "detection": "A journal file (state=testing, the foreign-tool prior state, test PIDs plus image paths) is written before each step. Test engines run in a Job Object with KILL_ON_JOB_CLOSE. On the next app or service start, an unfinished journal or stray EzPzDPI-path engine processes are found.",
+      "behavior": "Roll back first: kill orphaned test engines, restore foreign tools and autostart points stopped for testing, and leave no temporary strategy running. Then: 'Прошлый подбор прервался — всё вернули как было. Продолжить подбор?'",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "F09-post-fix-verification",
+      "priority": "should",
+      "detection": "The fix was committed.",
+      "behavior": "Quick re-check of the chosen services, the V07 restart advice, and a 'Проверьте сами' step with links (a YouTube video, discord.com/app) plus 'Не работает в браузере' (N07) and 'Голос всё равно рвётся' (V11/V03) buttons.",
+      "sources": [],
+      "unverified": false
+     }
+    ]
+   },
+   {
+    "group": "6. Persistence (reboot, auto-heal, updates, ISP changes)",
+    "scenarios": [
+     {
+      "id": "P01-service-config",
+      "priority": "must",
+      "detection": "Install time and every self-check: QueryServiceConfig2 for delayed auto-start and failure actions.",
+      "behavior": "Service 'EzPzDPI': delayed auto-start, recovery restart 3 times with backoff, then stop (no infinite loop), and a reset period. If it cannot start: tray 'Обход не запустился' with 'Запустить' and the real error in details. The internet must work normally without it.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P02-health-probe-triggers",
+      "priority": "must",
+      "detection": "App or tray start, service start or boot, resume (PowerSettingNotification), network change (NotifyIpInterfaceChange / NLM), OS build change, and an optional every-few-hours probe while the PC is on. No fixed night schedule. Probe 2-3 key services plus control, and record 'last success'. Two consecutive failures with control OK count as degradation.",
+      "behavior": "Silent when OK. On degradation, go to P03. On an engine crash or a missing file, go to X01/X02.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P03-isp-changed-dpi",
+      "priority": "must",
+      "detection": "P02 degradation on a known network profile.",
+      "behavior": "Auto-switch only to a strategy already validated on the same network profile, only when no Discord UDP flow or call is active, and roll back if the health check worsens. Notify after the switch. Otherwise tray: 'YouTube снова блокируется — похоже, провайдер что-то поменял. Нажмите, чтобы подобрать заново (2-3 минуты).' Re-search starts with the current strategy and keeps the old one if nothing beats it. A 'Журнал' shows what worked and when.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P04-network-profiles",
+      "priority": "should",
+      "detection": "A network profile = NLM network GUID + gateway MAC + public ASN (ASN lookup disclosed per R06; local signals first).",
+      "behavior": "Store the best strategy per profile and switch automatically on a known network. On a new network, run a quiet quick check and show a tray notice only if something is broken: 'Новая сеть (МТС). YouTube не работает — подобрать настройку?' If control fails with the filter active on a new network, pause automatically. Never show a modal on every Wi-Fi change.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P05-sleep-resume-fast-startup",
+      "priority": "should",
+      "detection": "A resume or fast-startup boot event, then a check that the engine is alive and its packet counters are moving, and a probe within 30 s.",
+      "behavior": "Restart the engine if needed, without user action.",
+      "sources": [],
+      "unverified": true
+     },
+     {
+      "id": "P06-windows-update-build-change",
+      "priority": "should",
+      "detection": "The stored last-seen OS build differs; the driver fails to load (X01); CodeIntegrity events.",
+      "behavior": "Run the health check automatically. If the driver is now blocked, explain which Windows protection blocked it (X03), with no casual 'disable it' advice.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P07-signed-list-and-strategy-updates",
+      "priority": "should",
+      "detection": "On app or tray start (not on a schedule), fetch a signed manifest over HTTPS from two mirrors, going through the active bypass. List age is shown.",
+      "behavior": "Update hostlists, ipsets, the voice IP list, signatures and fingerprints silently if the signature and hash verify; otherwise keep the bundled data. Show the list date in 'Подробнее'. Unreachable host: fail quietly. Do not depend on Flowseal URLs at runtime.",
+      "sources": [
+       "https://publish.obsidian.md/zapret/Privacy/Zapret/flowseal-zapret-discord-youtube-block-july-2026"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "P08-app-upgrade",
+      "priority": "must",
+      "detection": "A newer exe is run, or an update is offered. Compare state.json versions.",
+      "behavior": "'Есть новая версия EzPzDPI — обновить?' One UAC prompt. Stop the service, swap atomically (bin.new, then rename), migrate config while keeping per-network strategies and backups, start, then probe. On failure, roll back to the old version and say so. The outage lasts seconds. Never auto-update binaries without signature verification and user confirmation.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P09-downloaded-exe-moved-or-deleted",
+      "priority": "must",
+      "detection": "The service and engine always live in C:\\ProgramData\\EzPzDPI\\bin, and the UI copy lives in ProgramData. An Apps & Features uninstall entry and an all-users Start menu shortcut exist.",
+      "behavior": "The bypass keeps working if Downloads is cleaned. The user finds 'EzPzDPI' in Пуск and in Приложения. Running a newer exe from elsewhere offers 'Обновить'.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P10-pause-quick-off",
+      "priority": "must",
+      "detection": "A tray or app action, reaching the service over a named pipe.",
+      "behavior": "'Пауза на 1 час / до перезагрузки' and 'Включить снова', with no UAC prompt per toggle (the service performs it; standard users only if allowed, see P11). The state shows in the tray icon. After resuming, quick re-check. Pause stops the engine and unloads WinDivert when nothing else uses it.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P11-multi-user-and-standard-accounts",
+      "priority": "should",
+      "detection": "The service is machine-wide; the data dir is admin-only.",
+      "behavior": "Read-only status over a named pipe whose ACL allows Authenticated Users to read, or a world-readable status file without secrets. Any user sees 'Обход включён для всего компьютера, настроил: Мама, 12 ноября'. Pause for standard users only if the admin allowed it during setup. Re-select, settings and uninstall require admin. Only one tray instance per session.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "P12-anticheat-pause",
+      "priority": "should",
+      "detection": "Installed anti-cheat services or drivers: vgk/vgc (Vanguard), FACEIT, EasyAntiCheat*, BEService (names unverified). EAC message 'is loaded but its file is missing' (stale WinDivert).",
+      "behavior": "Before the fix: 'У вас установлен FACEIT. Некоторые античиты не любят сетевые драйверы — если игра начнёт ругаться, нажмите «Пауза на время игры».' Optional automatic pause when a listed game process starts. No compatibility promise.",
+      "sources": [
+       "https://github.com/Flowseal/zapret-discord-youtube/issues/4813"
+      ],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "7. Failures (driver errors, antivirus, no admin, ARM, WebView2)",
+    "scenarios": [
+     {
+      "id": "X01-windivert-error-map",
+      "priority": "must",
+      "detection": "Parse engine stderr with /windivert: error opening filter: (.*)/ (winws) and /Error opening filter: (\\d+)/ (GoodbyeDPI). Optionally run our own WinDivertOpen preflight to get the numeric code. 2 = WinDivert64.sys not found; 5 = not admin; 87 = bad filter or args; 577 = invalid signature; 654 = incompatible driver version already loaded; 1060 = not installed (NO_INSTALL flag); 1275 = driver blocked (security software or virtualization); 1753 = BFE disabled. Generic SCM: 1058 = service disabled; 1072 = marked for delete.",
+      "behavior": "A Russian hint per code. 2: re-extract after the hash check, or X02 if AV removed the file. 5: elevate. 87: drop that strategy and log it. 577/1275: go to X03. 654: stop and delete the foreign WinDivert/WinDivert14 (E09; E17 if a legitimate owner holds it), otherwise reboot. 1753: start BFE (F01). 1058: restore the start type. 1072: 'нужна перезагрузка'. Keep the raw text in the log.",
+      "sources": [
+       "https://reqrypt.org/windivert-doc.html",
+       "https://raw.githubusercontent.com/bol-van/zapret/master/nfq/darkmagic.c",
+       "https://raw.githubusercontent.com/ValdikSS/GoodbyeDPI/master/src/goodbyedpi.c",
+       "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--500-999-",
+       "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1000-1299-"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "X02-antivirus-quarantine",
+      "priority": "must",
+      "detection": "Verify SHA-256 of the engine, WinDivert.dll, WinDivert64.sys, cygwin1.dll and goodbyedpi.exe against the manifest compiled into the binary, on first run and every service start. Name the active AV via WMI root\\SecurityCenter2 AntiVirusProduct. Read Defender detections with Get-MpThreatDetection (event IDs 1116/1117 unverified). Kaspersky detects 'not-a-virus:HEUR:RiskTool.Multi.WinDivert.gen' and blocks the WinDivert service even with exclusions; ESET is incompatible with WinDivert; Malwarebytes flags RiskWare.WinDivert.VulnDriver.",
+      "behavior": "'Антивирус Kaspersky удалил файл winws (компонент обхода). Это частая ложная тревога: драйвер меняет сетевые пакеты, поэтому антивирусы его не любят.' Defender: one button to add an exclusion for C:\\ProgramData\\EzPzDPI only (Add-MpPreference -ExclusionPath, after UAC and consent). Then check with Get-MpPreference; Tamper Protection, passive mode or policy can block it, so never report success unverified. Other AVs: step-by-step text and 'Проверить снова'. 'Восстановить файлы' re-extracts from the signed resource after a hash check. The service must not loop-restart; the tray says 'Обход не работает: файл удалён антивирусом'. Kaspersky: say honestly that only exiting Kaspersky worked in its forum thread. A hash mismatch not caused by AV: refuse with 'Файлы подменены — скачайте EzPzDPI только с официальной страницы'.",
+      "sources": [
+       "https://forum.kaspersky.com/topic/exclusions-wont-work-for-goodbyedpi-52810",
+       "https://forum.eset.com/topic/42349-false-positive",
+       "https://github.com/ValdikSS/GoodbyeDPI",
+       "https://github.com/Flowseal/zapret-discord-youtube",
+       "https://learn.microsoft.com/en-us/powershell/module/defender/add-mppreference",
+       "https://www.malwarebytes.com/blog/detections/riskware-windivert-vulndriver",
+       "https://inventivehq.com/knowledge-base/microsoft/how-to-release-files-from-microsoft-quarantine"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "X03-driver-blocked-hvci-secure-boot",
+      "priority": "must",
+      "detection": "Errors 577 or 1275. HVCI: HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity Enabled=1 (unverified key). Secure Boot: HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State UEFISecureBootEnabled (unverified). CodeIntegrity Operational events 3033/3077 (unverified IDs). No source puts WinDivert on Microsoft's blocklist.",
+      "behavior": "'Windows не даёт загрузить сетевой драйвер (включена «Целостность памяти» или защита драйверов).' Steps: install all Windows updates and retry. Turning Memory Integrity off is the user's own choice, explained with its security cost; it is not the default recommendation, and testsigning is never suggested. Offer the GoodbyeDPI fallback only if it uses a different driver build (unverified; both use WinDivert), otherwise 'на этом компьютере EzPzDPI работать не сможет — нужен VPN'.",
+      "sources": [
+       "https://reqrypt.org/windivert-doc.html",
+       "https://raw.githubusercontent.com/bol-van/zapret/master/nfq/darkmagic.c",
+       "https://support.microsoft.com/help/4526424/",
+       "https://github.com/bol-van/zapret/blob/master/docs/windows.en.md"
+      ],
+      "unverified": true
+     },
+     {
+      "id": "X04-smartscreen-smart-app-control",
+      "priority": "should",
+      "detection": "Mark-of-the-Web on our exe. SAC state in HKLM\\SYSTEM\\CurrentControlSet\\Control\\CI\\Policy VerifiedAndReputablePolicyState (0 off, 1 on, 2 evaluation; unverified). A launch failure mentioning 'Device Guard policy'.",
+      "behavior": "Code-sign all binaries and ship no .bat/.ps1 (SAC blocks them with MotW and offers no override). The site explains 'Подробнее → Выполнить в любом случае' with a screenshot. On a SAC block: an explanation and Microsoft's warning; never casual advice to turn SAC off.",
+      "sources": [
+       "https://textslashplain.com/2026/04/28/smart-app-control/",
+       "https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation",
+       "https://support.microsoft.com/en-us/topic/app-and-browser-protection-in-the-windows-security-app-8f68fb65-ebb4-3cfb-4bd7-ef0f376f3dc3"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "X05-no-admin-or-corporate",
+      "priority": "must",
+      "detection": "Elevation returns ERROR_CANCELLED (1223). CheckTokenMembership(Administrators). Domain-joined (NetGetJoinInformation). WDAC/AppLocker present.",
+      "behavior": "Before UAC: 'Сейчас Windows спросит разрешение — программе нужно встроиться в сетевые настройки. Нажмите «Да».' On cancel: 'Проверить' works without admin. 'Без прав администратора починить нельзя — попросите владельца компьютера.' Domain PC: 'Это рабочий/учебный компьютер — не устанавливайте программы обхода без разрешения IT-отдела.' No workarounds.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "X06-unsupported-platform",
+      "priority": "must",
+      "detection": "RtlGetVersion build < 10240. IsWow64Process2 native machine ARM64 or x86. S-mode. A VM or Sandbox as a hint.",
+      "behavior": "A native MessageBox before any change: 'Нужна Windows 10 или 11, 64-бит (Intel/AMD).' ARM: 'На ARM-ноутбуках обход через драйвер невозможен (нет подписанного драйвера WinDivert для ARM64) — нужен VPN или роутер.' Exit without leaving files, and never try to load the driver.",
+      "sources": [
+       "https://github.com/bol-van/zapret/blob/master/docs/windows.en.md",
+       "https://reqrypt.org/windivert-doc.html"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "X07-missing-webview2",
+      "priority": "must",
+      "detection": "WebView2 runtime registry key EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5} (pv) is missing, or CreateCoreWebView2Environment fails.",
+      "behavior": "Native dialog: 'Для окна программы нужен компонент Microsoft WebView2 — установить (1 клик)?' Run the bundled bootstrapper. If it fails, use a minimal native fallback UI (status + Проверить/Пауза/Удалить). Never show a blank window.",
+      "sources": [],
+      "unverified": true
+     }
+    ]
+   },
+   {
+    "group": "8. Uninstall and cleanup",
+    "scenarios": [
+     {
+      "id": "U01-clean-uninstall-reverts-journal",
+      "priority": "must",
+      "detection": "The Apps & Features uninstall entry or the 'Удалить' button. Read the change journal.",
+      "behavior": "Stop and delete service EzPzDPI. Stop and delete the WinDivert driver service only if no other process or service references it. Remove C:\\ProgramData\\EzPzDPI, tray autostart, shortcuts and the uninstall entry. Revert exactly the journaled changes and nothing else: hosts lines, DNS/DoH, proxy, Drover renames, foreign service and task states, TCP timestamps and BFE (only if we changed them), our Defender exclusion. Must work offline and with damaged files. Finish with a control check: 'Готово. Удалено: … Восстановлено: … Интернет работает как до установки.' Reboot only if the driver did not unload (U03).",
+      "sources": [
+       "https://reqrypt.org/windivert-doc.html"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "U02-restore-previous-tool-question",
+      "priority": "must",
+      "detection": "A foreign-*.json backup exists.",
+      "behavior": "Ask: 'Раньше у вас стоял zapret (Flowseal) — вернуть его как было?' If yes and the folder and hash are intact, use E05 restore. If the folder is gone, say so. If the user declines: 'Обход отключён полностью — Discord и YouTube снова могут не работать. Старый zapret лежит в <путь>, его можно включить через service.bat.'",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "U03-driver-unload-and-reboot",
+      "priority": "should",
+      "detection": "sc stop WinDivert hangs (STOP_PENDING / 1051 / 1052) or returns 1072. WinDivert's docs say a running driver uninstalls at the next reboot once its files are deleted.",
+      "behavior": "'Сетевой драйвер выгрузится после перезагрузки — интернет работает и без неё.'",
+      "sources": [
+       "https://reqrypt.org/windivert-doc.html"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "U04-foreign-remnant-cleanup-on-request",
+      "priority": "should",
+      "detection": "E09 findings; the user asks to remove the old tool completely.",
+      "behavior": "Remove only services, tasks and drivers (journaled): sc stop/delete of zapret/winws1/winws2/GoodbyeDPI/discordfix_zapret, schtasks delete, then WinDivert/WinDivert14 if no owner remains. Delete the foreign folder only on an explicit separate confirmation that shows the path.",
+      "sources": [
+       "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat",
+       "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/service_del.cmd"
+      ],
+      "unverified": false
+     }
+    ]
+   },
+   {
+    "group": "9. Safety rules",
+    "scenarios": [
+     {
+      "id": "R01-never-destroy-foreign-state",
+      "priority": "must",
+      "detection": "Design rule.",
+      "behavior": "Never delete a foreign folder. Disable foreign services (start=disabled), never sc delete, unless doing U04 on request. Never kill by image name only; kill by PID + verified path. Never stop or kill anything without a consent dialog that lists exact names and paths. A foreign winws.exe elsewhere that is unrelated is listed, not killed.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R02-change-journal",
+      "priority": "must",
+      "detection": "Every write to system state.",
+      "behavior": "Append {what, before, after, time, user} to C:\\ProgramData\\EzPzDPI\\journal before applying. Rollback, 'Вернуть как было' and uninstall read only the journal.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R03-system-service-hygiene",
+      "priority": "must",
+      "detection": "On every service start: check the ACL on C:\\ProgramData\\EzPzDPI (write only for SYSTEM and Administrators) and binary hashes against the signed manifest. Lists must contain no argument-like content.",
+      "behavior": "Fail closed with 'Файлы программы изменены — переустановите EzPzDPI'. Quote every path in ImagePath. Never build command lines from user-writable paths, and never run anything from Downloads or Desktop as SYSTEM.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R04-dll-planting",
+      "priority": "must",
+      "detection": "The image directory at start is a user-writable folder (Downloads).",
+      "behavior": "Call SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) first. Load WebView2Loader from the embedded copy or ProgramData. Copy the app to ProgramData before any elevated action.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R05-authenticity",
+      "priority": "must",
+      "detection": "Authenticode on our exe; signed manifests for updates and lists.",
+      "behavior": "'О программе' shows the version, signer and 'Проверить подлинность'. The site gives one official download URL plus SHA-256. Text in both places: 'EzPzDPI бесплатна и никогда не просит деньги, пароли, номер телефона или вход в Госуслуги/банк.' Unsigned updates are refused: 'Обновление не прошло проверку — не устанавливаем.'",
+      "sources": [
+       "https://teletype.in/@censorliber/zapretvirus"
+      ],
+      "unverified": false
+     },
+     {
+      "id": "R06-privacy",
+      "priority": "must",
+      "detection": "Design rule.",
+      "behavior": "Before the first check: 'Программа подключается к проверяемым сайтам напрямую, как обычный браузер. Мы ничего не отправляем себе.' No telemetry. The IP/ASN echo lookup is disclosed, local signals are used first, and a failure counts as unknown. Logs stay local and can be deleted. 'Скопировать отчёт для помощника' produces a redacted text (Windows build, tools found, VPN/AV, verdicts with numbers, last voice estimate, recent errors; user names in paths and IP addresses removed) and shows its content before copying.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R07-respect-user-security-and-networking",
+      "priority": "must",
+      "detection": "Design rule.",
+      "behavior": "Never disable an AV or firewall. Never add broad exclusions (whole disk, Downloads). Never disconnect a VPN. Never change DNS, proxy or hosts silently, and never override parental DNS without asking.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R08-locale-independent-detection",
+      "priority": "must",
+      "detection": "Implementation rule. sc, netsh and driverquery output is localized on Russian Windows.",
+      "behavior": "Use the SCM APIs, the registry, CIM (MSFT_NetTCPSetting, Win32_Process, MSFT_NetAdapter) and IP Helper APIs. Test the detectors on a Russian-language Windows image.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R09-evidence-wording",
+      "priority": "must",
+      "detection": "Content rule.",
+      "behavior": "Voice results are 'оценка'. Community-reported causes are worded 'вероятно'. Unverified client tips appear only as tips. Never say 'голос Discord исправлен' from TCP tests.",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R10-legal-framing",
+      "priority": "should",
+      "detection": "Content rule.",
+      "behavior": "Neutral wording ('восстановить доступ', 'проверка соединения'). Name no VPN brands and give no instructions beyond the user's own PC. About states: 'Программа не скрывает личность и не является VPN; решение об использовании принимает пользователь.'",
+      "sources": [],
+      "unverified": false
+     },
+     {
+      "id": "R11-signatures-as-data",
+      "priority": "should",
+      "detection": "Design rule.",
+      "behavior": "The detection signature table (process, service, driver, task, adapter, hosts, error regex) ships as signed, updatable JSON. Every signature carries a verified flag; unverified matches use 'возможно' wording.",
+      "sources": [],
+      "unverified": false
+     }
+    ]
+   }
+  ],
+  "signatures": [
+   {
+    "name": "zapret-engine",
+    "kind": "process",
+    "value": "winws.exe",
+    "meaning": "zapret engine (Flowseal, zapret-win-bundle, GUIs). Foreign if the path is not under C:\\ProgramData\\EzPzDPI. Read CommandLine and the parent PID.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "zapret2-engine",
+    "kind": "process",
+    "value": "winws2.exe",
+    "meaning": "zapret2 engine (Lua based; zapret-win-bundle, Zapret-2-GUI)",
+    "verified": true,
+    "source": "https://api.github.com/repos/bol-van/zapret-win-bundle/git/trees/master?recursive=1"
+   },
+   {
+    "name": "goodbyedpi-engine",
+    "kind": "process",
+    "value": "goodbyedpi.exe",
+    "meaning": "GoodbyeDPI engine. Handles TCP only; no Discord voice UDP.",
+    "verified": true,
+    "source": "https://github.com/ValdikSS/GoodbyeDPI"
+   },
+   {
+    "name": "byedpi-proxy",
+    "kind": "process",
+    "value": "ciadpi.exe",
+    "meaning": "ByeDPI local SOCKS5 proxy. No driver and no service.",
+    "verified": true,
+    "source": "https://github.com/romanvht/ByeDPIManager"
+   },
+   {
+    "name": "byedpi-manager-gui",
+    "kind": "process",
+    "value": "ByeDPI Manager.exe",
+    "meaning": "ByeDPIManager GUI that launches ciadpi and ProxiFyre",
+    "verified": true,
+    "source": "https://github.com/romanvht/ByeDPIManager"
+   },
+   {
+    "name": "proxifyre",
+    "kind": "process",
+    "value": "proxifyre.exe",
+    "meaning": "Forces chosen apps (often Discord) into a SOCKS5 proxy via the ndisapi driver",
+    "verified": true,
+    "source": "https://github.com/romanvht/ByeDPIManager"
+   },
+   {
+    "name": "spoofdpi",
+    "kind": "process",
+    "value": "spoofdpi.exe",
+    "meaning": "SpoofDPI local HTTP proxy. Rare on Windows; the exe name is unconfirmed.",
+    "verified": false,
+    "source": "https://github.com/xvzc/SpoofDPI"
+   },
+   {
+    "name": "zapret-gui-helper",
+    "kind": "process",
+    "value": "ZapretGUI.Service.exe",
+    "meaning": "Zapret-GUI (medvedeff-true) elevated helper. Runs winws in a Job Object and kills or respawns it. Stop it before its engine.",
+    "verified": true,
+    "source": "https://github.com/medvedeff-true/Zapret-GUI"
+   },
+   {
+    "name": "zapret-gui-app",
+    "kind": "process",
+    "value": "ZapretGUI.exe|Zapret_GUI.exe",
+    "meaning": "Zapret-GUI front-end; the exact exe name is ambiguous",
+    "verified": false,
+    "source": "https://github.com/medvedeff-true/Zapret-GUI"
+   },
+   {
+    "name": "zapret-bundle-helpers",
+    "kind": "process",
+    "value": "elevator.exe|killall.exe",
+    "meaning": "zapret-win-bundle helper binaries. Only meaningful when they sit beside winws.exe.",
+    "verified": true,
+    "source": "https://api.github.com/repos/bol-van/zapret-win-bundle/git/trees/master?recursive=1"
+   },
+   {
+    "name": "adguard-service",
+    "kind": "process",
+    "value": "AdguardSvc.exe",
+    "meaning": "AdGuard traffic filtering. Known to break Discord voice with zapret (Flowseal #417).",
+    "verified": true,
+    "source": "https://github.com/Flowseal/zapret-discord-youtube/issues/417"
+   },
+   {
+    "name": "warp-daemon",
+    "kind": "process",
+    "value": "C:\\Program Files\\Cloudflare\\Cloudflare WARP\\warp-svc.exe",
+    "meaning": "Cloudflare WARP daemon. A tunnel may be active, so results do not reflect the ISP.",
+    "verified": true,
+    "source": "https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide"
+   },
+   {
+    "name": "vpn-client-hints",
+    "kind": "process",
+    "value": "(?i)^(v2rayN|xray|sing-box|mihomo|clash-verge|verge-mihomo|Hiddify|Throne|nekoray|AmneziaVPN|amneziawg|wireguard|openvpn|openvpn-gui|tor|psiphon3|lantern|windscribe|ProtonVPN|Proxifier|warp-taskbar)\\.exe$",
+    "meaning": "A VPN or proxy client is probably running. Hint only; confirm with route and adapter.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "discord-clients",
+    "kind": "process",
+    "value": "(?i)^(Discord|DiscordPTB|DiscordCanary|DiscordDevelopment|vesktop)\\.exe$",
+    "meaning": "Discord client variants for proxy, UDP flow and restart checks",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "anticheat-hints",
+    "kind": "service",
+    "value": "(?i)^(vgk|vgc|FACEIT|FACEITService|EasyAntiCheat.*|BEService)$",
+    "meaning": "Kernel anti-cheat installed. Warn and offer pause during games.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "flowseal-service",
+    "kind": "service",
+    "value": "zapret",
+    "meaning": "Flowseal zapret-discord-youtube service. DisplayName 'zapret', Description 'Zapret DPI bypass software', ImagePath \"<root>\\bin\\winws.exe\" <args>, start=auto, no recovery actions.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "flowseal-strategy-value",
+    "kind": "registry",
+    "value": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\zapret : zapret-discord-youtube (REG_SZ)",
+    "meaning": "The installed Flowseal strategy (.bat name without extension, e.g. 'general (ALT3)')",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "discordfix-zapret",
+    "kind": "service",
+    "value": "discordfix_zapret",
+    "meaning": "Older Discord-fix zapret service. Listed as conflicting by Flowseal.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "bundle-service-1",
+    "kind": "service",
+    "value": "winws1",
+    "meaning": "zapret-win-bundle service (service1_create.cmd). Args vary per user.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/service_del.cmd"
+   },
+   {
+    "name": "bundle-service-2",
+    "kind": "service",
+    "value": "winws2",
+    "meaning": "zapret-win-bundle second service (service2_create.cmd)",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/service_del.cmd"
+   },
+   {
+    "name": "zapret2-service",
+    "kind": "service",
+    "value": "zapret2",
+    "meaning": "Presumed zapret2 service name. No source confirms it.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "goodbyedpi-service",
+    "kind": "service",
+    "value": "GoodbyeDPI",
+    "meaning": "GoodbyeDPI service (hard-coded SERVICE_NAME). ImagePath args: -5/-9, --blacklist, --dns-addr.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/ValdikSS/GoodbyeDPI/master/src/service.c"
+   },
+   {
+    "name": "bypass-imagepath-pattern",
+    "kind": "service",
+    "value": "(?i)(winws2?\\.exe|goodbyedpi\\.exe|ciadpi\\.exe|\\\\zapret)",
+    "meaning": "Generic match on service ImagePath to catch custom-named bypass services",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "warp-service",
+    "kind": "service",
+    "value": "CloudflareWARP",
+    "meaning": "Cloudflare WARP service. The name comes from the 2022 v1.4 build and may differ now.",
+    "verified": false,
+    "source": "https://exploit-db.com/exploits/50805"
+   },
+   {
+    "name": "bfe",
+    "kind": "service",
+    "value": "BFE",
+    "meaning": "Base Filtering Engine. Must be RUNNING, otherwise WinDivert fails with 1753.",
+    "verified": true,
+    "source": "https://reqrypt.org/windivert-doc.html"
+   },
+   {
+    "name": "checkpoint-services",
+    "kind": "service",
+    "value": "TracSrvWrapper|EPWD",
+    "meaning": "Check Point endpoint. Flagged by Flowseal as conflicting with WinDivert.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "killer-smartbyte-intel",
+    "kind": "service",
+    "value": "DisplayName (?i)(killer|smartbyte|intel.*connectivity.*network)",
+    "meaning": "NIC suites that conflict with WinDivert (Flowseal #2512, GoodbyeDPI #541)",
+    "verified": true,
+    "source": "https://github.com/Flowseal/zapret-discord-youtube/issues/2512"
+   },
+   {
+    "name": "vpn-service-text",
+    "kind": "service",
+    "value": "(?i)(VPN|HappService)",
+    "meaning": "Flowseal's heuristic for VPN services. Hint only.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "wireguard-tunnel-service",
+    "kind": "service",
+    "value": "^(WireGuardTunnel|AmneziaWGTunnel)\\$.+",
+    "meaning": "Per-tunnel service of the WireGuard or AmneziaWG client. The pattern comes from general knowledge.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "windivert-driver",
+    "kind": "driver",
+    "value": "WinDivert",
+    "meaning": "WinDivert 2.x kernel driver service (zapret, current tools). Only RUNNING with no owner process, or an ImagePath pointing elsewhere or to a missing file, is actionable.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/bol-van/zapret-win-bundle/master/zapret-winws/windivert_delete.cmd"
+   },
+   {
+    "name": "windivert14-driver",
+    "kind": "driver",
+    "value": "WinDivert14",
+    "meaning": "Legacy WinDivert 1.4 driver (old GoodbyeDPI 0.1.x era)",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "windivert-legacy-variants",
+    "kind": "driver",
+    "value": "WinDivert1.4|WinDivert64",
+    "meaning": "Other legacy driver names cited in guides. Enumerate HKLM\\SYSTEM\\CurrentControlSet\\Services\\WinDivert* instead of relying on them.",
+    "verified": false,
+    "source": "https://teletype.in/@spravkins/cIIxwjm_DdV"
+   },
+   {
+    "name": "windivert-hide-driver",
+    "kind": "driver",
+    "value": "Monkey (file Monkey64.sys)",
+    "meaning": "WinDivert renamed by bol-van windivert-hide to evade anti-cheat",
+    "verified": true,
+    "source": "https://github.com/bol-van/zapret-win-bundle/blob/master/windivert-hide/README.txt"
+   },
+   {
+    "name": "windivert-files",
+    "kind": "file",
+    "value": "WinDivert64.sys|WinDivert.dll|WinDivert32.sys",
+    "meaning": "WinDivert components. A process with WinDivert.dll loaded is a packet engine whatever its name.",
+    "verified": true,
+    "source": "https://reqrypt.org/windivert-doc.html"
+   },
+   {
+    "name": "winpkfilter-driver",
+    "kind": "driver",
+    "value": "ndisrd",
+    "meaning": "Windows Packet Filter driver used by ProxiFyre and others. Shared; never remove.",
+    "verified": false,
+    "source": "https://github.com/romanvht/ByeDPIManager"
+   },
+   {
+    "name": "bundle-scheduled-tasks",
+    "kind": "task",
+    "value": "winws1|winws2|winws3",
+    "meaning": "Scheduled tasks created by zapret task_create.cmd (docs/older releases)",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/bol-van/zapret/master/docs/windows.en.md"
+   },
+   {
+    "name": "bypass-task-action",
+    "kind": "task",
+    "value": "Action path or args match (?i)(winws2?\\.exe|goodbyedpi\\.exe|general.*\\.bat|zapret)",
+    "meaning": "Any community-made autostart task for a bypass tool",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "run-key-autostart",
+    "kind": "registry",
+    "value": "HKU\\<SID>\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, RunOnce; HKLM\\...\\Run; plus %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup and ProgramData Startup",
+    "meaning": "Autostart entries that launch a bypass .bat/.exe when they match the bypass pattern",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "flowseal-folder",
+    "kind": "file",
+    "value": "<root>\\service.bat + <root>\\general*.bat + <root>\\bin\\winws.exe + <root>\\lists\\list-general.txt",
+    "meaning": "Fingerprint of a Flowseal folder",
+    "verified": true,
+    "source": "https://api.github.com/repos/Flowseal/zapret-discord-youtube/contents/"
+   },
+   {
+    "name": "flowseal-version",
+    "kind": "file",
+    "value": "<root>\\service.bat line: set \"LOCAL_VERSION=x.y.z\"",
+    "meaning": "Installed Flowseal version (1.10.4 on main, 2026-11-16)",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "flowseal-game-filter",
+    "kind": "file",
+    "value": "<root>\\utils\\game_filter.enabled",
+    "meaning": "Present = Game Filter ON (key=value mode/tcp/udp; default 1024-65535). Possible cause of game or voice problems.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "flowseal-ipset-mode",
+    "kind": "file",
+    "value": "<root>\\lists\\ipset-all.txt (first line 203.0.113.113/32 = 'none'; .backup swap)",
+    "meaning": "Flowseal ipset mode none/loaded/any. 'any' is known to break sites.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "flowseal-autoupdate",
+    "kind": "file",
+    "value": "<root>\\utils\\check_updates.enabled",
+    "meaning": "Flowseal update check is on",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "flowseal-discord-fake",
+    "kind": "file",
+    "value": "<root>\\bin\\ACTIVE_DISCORD_UDP.bin, ACTIVE_GAME_UDP.bin",
+    "meaning": "Active fake payloads used by Flowseal's voice and game UDP rules",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "zapret-gui-data",
+    "kind": "file",
+    "value": "%USERPROFILE%\\ZapretGUI",
+    "meaning": "Zapret-GUI user data (adaptive strategies, backups)",
+    "verified": true,
+    "source": "https://github.com/medvedeff-true/Zapret-GUI"
+   },
+   {
+    "name": "goodbyedpi-folder",
+    "kind": "file",
+    "value": "x86_64\\goodbyedpi.exe + russia-blacklist.txt + service_install_russia_blacklist*.cmd",
+    "meaning": "GoodbyeDPI release folder",
+    "verified": true,
+    "source": "https://github.com/ValdikSS/GoodbyeDPI"
+   },
+   {
+    "name": "bundle-folder",
+    "kind": "file",
+    "value": "zapret-winws\\service1_create.cmd, service_del.cmd, windivert_delete.cmd, preset*_example.cmd",
+    "meaning": "zapret-win-bundle folder",
+    "verified": true,
+    "source": "https://api.github.com/repos/bol-van/zapret-win-bundle/git/trees/master?recursive=1"
+   },
+   {
+    "name": "discord-drover",
+    "kind": "file",
+    "value": "%LocalAppData%\\Discord\\app-*\\version.dll + drover.ini",
+    "meaning": "Discord Drover forces Discord TCP through a proxy, so text works and voice fails",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "defender-quarantine",
+    "kind": "file",
+    "value": "C:\\ProgramData\\Microsoft\\Windows Defender\\Quarantine",
+    "meaning": "Defender quarantine store. Restore via Protection history.",
+    "verified": true,
+    "source": "https://inventivehq.com/knowledge-base/microsoft/how-to-release-files-from-microsoft-quarantine"
+   },
+   {
+    "name": "system-proxy",
+    "kind": "proxy",
+    "value": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings : ProxyEnable=1, ProxyServer",
+    "meaning": "WinINET system proxy is on (Flowseal check). Check for a dead local port.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "pac-proxy",
+    "kind": "proxy",
+    "value": "HKCU\\...\\Internet Settings : AutoConfigURL, AutoDetect",
+    "meaning": "PAC or WPAD configured",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "winhttp-proxy",
+    "kind": "proxy",
+    "value": "WinHttpGetDefaultProxyConfiguration / netsh winhttp show advproxy",
+    "meaning": "Machine WinHTTP proxy (no SOCKS5 support)",
+    "verified": true,
+    "source": "https://learn.microsoft.com/en-us/windows/win32/winhttp/netsh-exe-commands"
+   },
+   {
+    "name": "byedpi-listener",
+    "kind": "proxy",
+    "value": "TCP listen :1080 owned by ciadpi.exe",
+    "meaning": "ByeDPI SOCKS5",
+    "verified": true,
+    "source": "https://github.com/romanvht/ByeDPIManager"
+   },
+   {
+    "name": "spoofdpi-listener",
+    "kind": "proxy",
+    "value": "TCP listen 127.0.0.1:8080 owned by spoofdpi",
+    "meaning": "SpoofDPI (v0.10.x default)",
+    "verified": true,
+    "source": "https://git.axenov.dev/mirrors/SpoofDPI/src/tag/v0.10.8"
+   },
+   {
+    "name": "proxy-client-port-hints",
+    "kind": "proxy",
+    "value": "127.0.0.1:7890|10808|10809|2080",
+    "meaning": "Typical Clash/Mihomo, v2rayN and sing-box ports. Hint only.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "discord-local-proxy-conn",
+    "kind": "proxy",
+    "value": "Discord.exe TCP remote 127.0.0.1:* (GetExtendedTcpTable) or --proxy-server= in its command line",
+    "meaning": "Discord TCP goes through a local proxy, so voice UDP takes another path",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "flowseal-hosts-discord",
+    "kind": "hosts",
+    "value": "discord.com|updates.discord.com -> 162.159.128.233|162.159.135.232|162.159.137.232|162.159.138.232",
+    "meaning": "Flowseal 'Update Hosts File' payload, pasted manually",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/hosts"
+   },
+   {
+    "name": "flowseal-hosts-other",
+    "kind": "hosts",
+    "value": "github.com/*.githubusercontent.com -> 140.82.121.3|146.75.22.132; *.telegram.org -> 149.154.167.220",
+    "meaning": "The rest of the Flowseal hosts payload (marks the block's presence)",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/.service/hosts"
+   },
+   {
+    "name": "obsolete-voice-hosts",
+    "kind": "hosts",
+    "value": "finland10000-finland10199.discord.media -> 104.25.158.178",
+    "meaning": "Old voice hosts entries, now obsolete. Flag as stale.",
+    "verified": true,
+    "source": "https://habr.com/en/articles/1002160"
+   },
+   {
+    "name": "youtube-hosts",
+    "kind": "hosts",
+    "value": "(?i)(youtube\\.com|youtu\\.be) with non-loopback IP",
+    "meaning": "Flowseal's hosts check. A hosts override for YouTube is present.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "blocked-service-hosts-generic",
+    "kind": "hosts",
+    "value": "(?i)(googlevideo|ytimg|ggpht|discord(app)?\\.|discord\\.media|instagram|cdninstagram|fbcdn|telegram|twimg|x\\.com) with IP not 0.0.0.0/127.0.0.1/::1",
+    "meaning": "Unblock-guide leftover. Compare with DoH.",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "windows-doh",
+    "kind": "registry",
+    "value": "HKLM\\SYSTEM\\CurrentControlSet\\Services\\Dnscache\\InterfaceSpecificParameters\\<GUID>\\DohFlags > 0",
+    "meaning": "Windows Secure DNS is on for that interface",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/Flowseal/zapret-discord-youtube/main/service.bat"
+   },
+   {
+    "name": "hvci",
+    "kind": "registry",
+    "value": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity : Enabled=1",
+    "meaning": "Memory Integrity is on (possible cause of 577/1275)",
+    "verified": false,
+    "source": "https://support.microsoft.com/help/4526424/"
+   },
+   {
+    "name": "secure-boot",
+    "kind": "registry",
+    "value": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecureBoot\\State : UEFISecureBootEnabled",
+    "meaning": "Secure Boot state (context for 577)",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "smart-app-control",
+    "kind": "registry",
+    "value": "HKLM\\SYSTEM\\CurrentControlSet\\Control\\CI\\Policy : VerifiedAndReputablePolicyState (0 off, 1 on, 2 eval)",
+    "meaning": "Smart App Control state",
+    "verified": false,
+    "source": "https://textslashplain.com/2026/04/28/smart-app-control/"
+   },
+   {
+    "name": "webview2-runtime",
+    "kind": "registry",
+    "value": "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5} : pv",
+    "meaning": "WebView2 Runtime is installed (also check HKCU)",
+    "verified": false,
+    "source": ""
+   },
+   {
+    "name": "tunnel-adapter-description",
+    "kind": "adapter",
+    "value": "(?i)(Wintun|WireGuard|TAP-Windows Adapter V9|TAP-.*Adapter|OpenVPN|ovpn-dco|Amnezia|NordLynx|WARP)",
+    "meaning": "VPN or TUN adapter. Adapter names are free-form, so match InterfaceDescription and confirm via the default route.",
+    "verified": false,
+    "source": "https://www.techradar.com/vpn/what-is-a-tap-adapter"
+   },
+   {
+    "name": "split-default-route",
+    "kind": "adapter",
+    "value": "routes 0.0.0.0/1 + 128.0.0.0/1 (and ::/1 + 8000::/1) on one interface",
+    "meaning": "Full-tunnel VPN using WireGuard-style split default routes",
+    "verified": true,
+    "source": "https://git.zx2c4.com/wireguard-windows/tree/docs/netquirk.md?h=v0.3"
+   },
+   {
+    "name": "winws-open-error",
+    "kind": "log",
+    "value": "windivert: error opening filter: (.*)  [+ 'windivert: try to disable secure boot and install OS patches' on 577]",
+    "meaning": "winws failed to open WinDivert. Map the code via the WinDivert table.",
+    "verified": true,
+    "source": "https://raw.githubusercontent.com/bol-van/zapret/master/nfq/darkmagic.c"
+   },
+   {
+    "name": "goodbyedpi-open-error",
+    "kind": "log",
+    "value": "Error opening filter: (\\d+)",
+    "meaning": "GoodbyeDPI WinDivert open failure. Exact strings to recheck against the raw source.",
+    "verified": false,
+    "source": "https://raw.githubusercontent.com/ValdikSS/GoodbyeDPI/master/src/goodbyedpi.c"
+   },
+   {
+    "name": "windivert-error-codes",
+    "kind": "log",
+    "value": "2=sys missing; 5=not admin; 87=bad filter; 577=bad signature; 654=other driver version loaded; 1060=not installed; 1275=driver blocked; 1753=BFE disabled; (SCM) 1058=disabled; 1072=marked for delete",
+    "meaning": "Error-to-hint map for X01",
+    "verified": true,
+    "source": "https://reqrypt.org/windivert-doc.html"
+   },
+   {
+    "name": "eac-stale-driver",
+    "kind": "log",
+    "value": "is loaded but its file is missing. Please reboot your system to unload the driver",
+    "meaning": "Easy Anti-Cheat sees a stale WinDivert driver whose .sys was deleted, so a reboot is needed",
+    "verified": true,
+    "source": "https://github.com/Flowseal/zapret-discord-youtube/issues/4813"
+   },
+   {
+    "name": "scm-crash-events",
+    "kind": "log",
+    "value": "System log, Service Control Manager, IDs 7000/7023/7031/7034 naming a bypass service",
+    "meaning": "A foreign or own engine service crashed or failed to start",
+    "verified": false,
+    "source": ""
+   }
+  ],
+  "voice_test": "Call the row 'Голос Discord (оценка)'. It has three parts, and each runs once with the current setup (the foreign tool or EzPzDPI) and once per top candidate.\n\n(1) Handshake ratio, about 20 s. Open N=15-20 fresh UDP flows, each from a new ephemeral source port. Send a 74-byte Discord IP-Discovery-shaped packet (type 0x0001, length 70, SSRC, 64-byte address, port) to the port families 19294-19344 and 50000-50100 on Discord voice IPs from a signed, updatable list (seeds: 104.29.153.x, 35.216-219.x; stale-prone, unverified). Because an unauthenticated SSRC may get no reply (unverified), pair each flow with an RFC 5389 STUN Binding request (magic cookie 0x2112A442) to stun.l.google.com:19302. Port 19302 falls inside Flowseal's 19294-19344 range with --filter-l7=discord,stun, so it exercises the same desync rule. Send the same request to stun.cloudflare.com:3478 as an outside-the-rule control. Classes: 0% = blocked, 10-90% = flaky (matches the ~1/15 random success in Flowseal #16192), 100% = handshake OK.\n\n(2) Soak test, 60-180 s, only for the current setup and the top 2-3 candidates. Send one STUN binding per second to 2-3 servers on a kept-alive flow, and record loss, gaps longer than 2 s and RTT jitter. In parallel, ping the default gateway at 5-10 Hz to separate local Wi-Fi spikes from ISP or DPI effects. Poll foreign and own engine PIDs and start times every second to correlate engine restarts with gaps.\n\n(3) TCP reachability. Check SYN-ACK and TLS to a discord.media host on 443/2053/2083/2087/2096/8443, and to updates.discord.com. ICMP can succeed while TCP and UDP fail.\n\nCompare candidates with interleaved A/B/A/B rounds, and switch only on a clear margin. Count a rate limit or a failing control as 'не удалось проверить'.\n\nOptional real-call mode, about 5 min. The user joins a real voice channel. The app watches Discord.exe UDP flows via GetExtendedUdpTable (a new local port means a reconnect), engine restarts and gateway loss. This is the only mode that observes real voice, and it still reports correlation, not proof.\n\nKnown limits:\n- The endpoints are dynamic (Discord docs forbid caching them).\n- No source proves that STUN or IP-Discovery probes correlate with real call stability.\n- winws only desyncs flow starts (conntrack UDP timeout 60 s), so mid-flow drops it cannot fix should be reported as 'нестабильный UDP-путь'.\n- Never word a result as 'голос работает'.\n- Validate thresholds on 2-3 live Russian ISPs (Rostelecom, MTS, MegaFon) with a real Discord call logged side by side before shipping verdict wording.",
+  "open_questions": [
+   "Do unauthenticated IP-Discovery packets to Discord voice IPs get any reply? If not, the handshake probe has to rely on STUN on 19302 as a proxy signal. This needs a live test.",
+   "Does a STUN, IP-Discovery or soak result actually correlate with real Discord call drops on Russian ISPs? This needs side-by-side measurement with a logged real call on 2-3 ISPs.",
+   "What exactly causes the friend's 'drops every few minutes'? No source documents periodic mid-call TSPU cutoffs. Candidates are foreign engine crashes or restarts, two engines, game filter or ipset 'any', AdGuard, Wi-Fi, and Finland region flapping. All of these are detectable, but the root cause is unconfirmed.",
+   "Exact names still unverified on a real Windows VM: zapret2 service, Zapret-GUI helper service registration, GoodbyeDPI-UI process and autostart, CloudflareWARP service and adapter on current builds, SpoofDPI exe, Drover file names, WireGuardTunnel$/AmneziaWGTunnel$ patterns, and VPN client process names. Plan: install each tool and dump services, drivers, tasks, processes and ImagePaths into a fixture table.",
+   "Does renaming winws.exe (for example to ezpzdpi-engine.exe) keep cygwin1.dll loading and all features working?",
+   "Which WinDivert version does current GoodbyeDPI 0.2.x ship (2.2.x?), and does that make a 'GoodbyeDPI fallback' for HVCI or 577 cases pointless because it uses the same driver?",
+   "Is WinDivert64.sys affected by HVCI or the Microsoft vulnerable-driver blocklist on current Windows 11 builds? There is no source either way.",
+   "Can --wf-iface or another interface scoping keep winws off VPN tunnel traffic so EzPzDPI and a VPN can coexist?",
+   "How do ECH blocking (cloudflare-ech.com) and the X25519MLKEM768 ClientHello size interact with the bundled strategies? This needs verification on a live Russian line.",
+   "Registry keys used for detection that are not confirmed by fetched sources: HVCI, SecureBoot, SAC VerifiedAndReputablePolicyState, the WebView2 client GUID, AutoConfigURL, and CodeIntegrity and Defender event IDs.",
+   "Does a scheduled task or Startup shortcut convention exist in popular Russian zapret and GoodbyeDPI guides beyond winws1..3? Scanning by action pattern covers it, but fixtures would help.",
+   "Is IP-level 16-20 KB throttling of foreign hosting and CDN ranges real and current? It is community-reported only, so wording stays 'вероятно'.",
+   "Product decision for Art: should EzPzDPI ever auto-switch strategies (only within the same network profile, outside calls, with rollback), or only on a click? The scenario sources contradicted each other; the spec takes the restricted auto-switch."
+  ]
+ },
+ "corrections": [
+  "Discord voice ports: several scenarios name 'UDP 50000-65535' as Discord's voice range and treat a strategy that does not cover it as a cause of drops. I found no official Discord document for that range; it appears only on third-party firewall sites. Flowseal deliberately filters UDP 19294-19344 and 50000-50100 (and TCP 2053/2083/2087/2096/8443 for discord.media). Probe both port families, and do not flag Flowseal arguments as defective because they lack 50101-65535.",
+  "'STUN 3478-3481' listed as Discord voice ports is unverified (third-party sites only). Do not build detection or verdicts on it.",
+  "Research claims a STUN probe to stun.l.google.com:19302 would not be desynced by Flowseal strategies. That is wrong: 19302 falls inside Flowseal's 19294-19344 range with --filter-l7=discord,stun, so it IS processed. Port 3478 is not. Correct the probe-design reasoning accordingly.",
+  "Flowseal version: it is stored as `set \"LOCAL_VERSION=...\"` inside service.bat (1.10.4 in the current main branch, fetched 2026-11-16). .service/version.txt is the remote copy that service.bat fetches from GitHub, not a local file. Scenario examples saying 'версия 1.8.x' are stale.",
+  "Flowseal does NOT write the strategy into the service Description: it uses DisplayName 'zapret' and the fixed description 'Zapret DPI bypass software'. The strategy is the REG_SZ value 'zapret-discord-youtube' under HKLM\\System\\CurrentControlSet\\Services\\zapret, holding the .bat file name.",
+  "Research item 2 says service.bat 'also edits hosts'. The current script never edits hosts automatically: it downloads the payload to %TEMP%, opens Notepad and Explorer, and the user pastes it by hand. Hosts entries found on the machine therefore came from a manual paste (or another tool), and the user may not know about them.",
+  "Flowseal configures no service recovery (no `sc failure`). A crashed winws leaves 'zapret' stopped until reboot. This is a concrete, checkable cause of 'works but unstable' and should be checked before any DPI theory.",
+  "Flowseal's conflict handling: the conflicting_services list (GoodbyeDPI discordfix_zapret winws1 winws2) is removed only when the user answers Y (default N). Its WinDivert-conflict branch auto-deletes GoodbyeDPI when WinDivert is active but no winws.exe is running. 'Remove Services' does `taskkill /IM winws.exe /F`, which would also kill EzPzDPI's engine if it is named winws.exe (see M01).",
+  "Flowseal's TCP timestamps check greps English netsh output, which is unreliable on Russian-language Windows. EzPzDPI must not copy its text-parsing approach for sc, netsh or driverquery (see M20).",
+  "Add 'discordfix_zapret' to EzPzDPI's existing stop list (services zapret/GoodbyeDPI/winws1/winws2/zapret2). Treat 'zapret2' as unverified. Match services by ImagePath patterns (winws, goodbyedpi, ciadpi, WinDivert) rather than names only.",
+  "WinDivert persistence: the official doc says a running WinDivert driver is uninstalled at the next reboot once its files are deleted, and that manual removal is: end all user processes, then `sc stop WinDivert` and `sc delete WinDivert`. A registered WinDivert service alone does not prove a tool is active. A RUNNING WinDivert with no owning process, or one whose ImagePath points to another folder or a missing file, is the actionable signal. The research claim that the service 'often STAYS registered' is unverified.",
+  "GoodbyeDPI and WinDivert 1.4: current GoodbyeDPI 0.2.x builds appear to ship WinDivert 2.2.x (a third-party build guide cites 2.2.2-A with 0.2.2; no official changelog found). 'WinDivert14' therefore points to an old 0.1.x-era install, not to GoodbyeDPI in general. Enumerate every WinDivert* or Monkey* driver key instead of assuming.",
+  "Discord voice region override in a server requires the Manage Channels permission. Advice to 'выберите регион' must account for ordinary members (see M23).",
+  "Contradiction across the scenario lists: list 3 S08 says to auto-switch strategies silently on degradation, while lists 1 and 4 say never switch silently. Reconcile: switch automatically only to a strategy already validated on the same network profile, only when no Discord UDP flow or call is active, with a rollback if the health check worsens. Notify after the switch.",
+  "The Discord QoS, hardware acceleration and 'TURN' tips are unverified for TSPU-related drops. Show them as optional tips, never as a fix, and never record them as the reason something now works.",
+  "The voice-endpoint hostnames used for probes (finland10000.discord.media and similar from a Habr hosts list) may be obsolete: Zapret-2-GUI removed those hosts entries as outdated. Treat bundled voice IPs and hosts as stale-prone, updatable data, and label every voice probe result 'оценка', never 'голос работает'.",
+  "Defender exclusion via Add-MpPreference can fail or be overridden when Tamper Protection is on, when Defender is in passive mode because of a third-party AV, or under policy management. Verify the exclusion with Get-MpPreference afterwards, and do not report success otherwise.",
+  "With an admin-only ACL on C:\\ProgramData\\EzPzDPI, the planned standard-user tray status and 'Пауза' (scenario lists 1 and 2) cannot read state directly. A service IPC channel or a readable status file is needed (see M22).",
+  "Scenario list 4 S01 suggests reading 'the Flowseal version from the folder name'. The folder name is user-chosen and unreliable. Use LOCAL_VERSION from service.bat, and fall back to the hash of winws.exe matched against known releases."
+ ]
+}
